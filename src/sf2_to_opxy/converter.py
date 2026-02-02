@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import os
 from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 from sf2_to_opxy.audio import resample_linear
 from sf2_to_opxy.opxy_writer import write_drum_preset, write_multisample_preset
@@ -419,6 +419,7 @@ def convert_presets(
     zero_crossing_max_distance: int = ZERO_CROSS_MAX_DISTANCE,
     zero_crossing_threshold: int = ZERO_CROSS_THRESHOLD,
     loop_end_offset: int = 0,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> Dict[str, object]:
     log: Dict[str, object] = {"discarded": [], "presets": [], "warnings": []}
     if bit_depth != 16:
@@ -651,7 +652,8 @@ def convert_presets(
                 }
             )
 
-    for preset in presets:
+    total_presets = len(presets)
+    for index, preset in enumerate(presets, start=1):
         preset_name = preset.get("name", "Preset")
         zones = preset.get("zones", [])
         is_drum = _resolve_is_drum(preset)
@@ -691,5 +693,7 @@ def convert_presets(
                             }
                         )
             write_preset(preset_name, preset, filtered)
+        if progress_callback:
+            progress_callback(index, total_presets, str(preset_name))
 
     return log

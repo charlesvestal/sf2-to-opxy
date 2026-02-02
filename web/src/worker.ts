@@ -78,7 +78,7 @@ self.onmessage = async (event: MessageEvent) => {
       return;
     }
 
-    if (type === 'convert') {
+  if (type === 'convert') {
       await ensurePyodide(payload ?? {});
       const options = payload?.options ?? {};
       const inputName = payload?.inputName ?? 'input.sf2';
@@ -101,8 +101,18 @@ self.onmessage = async (event: MessageEvent) => {
 
       postMessage(encodeMessage('progress', { stage: 'pyodide:convert' }));
       const optionsJson = JSON.stringify(options ?? {});
+      pyodide.globals.set('js_progress', (current: number, total: number, name: string) => {
+        postMessage(
+          encodeMessage('progress', {
+            stage: 'convert',
+            current,
+            total,
+            preset: name
+          })
+        );
+      });
       pyodide.runPython(
-        `from web_entry import run_conversion\nrun_conversion('/work/${inputName}', '${outDir}', '''${optionsJson}''')`
+        `import js\nfrom web_entry import run_conversion\n\ndef _progress(current, total, name):\n    js.js_progress(current, total, name)\n\nrun_conversion('/work/${inputName}', '${outDir}', '''${optionsJson}''', _progress)`
       );
 
       postMessage(encodeMessage('progress', { stage: 'pyodide:collect' }));

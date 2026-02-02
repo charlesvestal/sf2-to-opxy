@@ -128,7 +128,11 @@ async function convert() {
   worker.onmessage = (event) => {
     const { type, payload } = event.data ?? {};
     if (type === 'progress') {
-      setStatus(`Progress: ${payload.stage}`);
+      if (typeof payload?.current === 'number' && typeof payload?.total === 'number') {
+        setStatus(`Converted ${payload.current} / ${payload.total} presets`);
+      } else {
+        setStatus(`Progress: ${payload.stage}`);
+      }
     } else if (type === 'log') {
       appendLog(payload.message ?? '');
     } else if (type === 'file') {

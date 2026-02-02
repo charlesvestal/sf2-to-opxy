@@ -25,7 +25,12 @@ def _normalize_options(raw: str) -> Dict[str, Any]:
     }
 
 
-def run_conversion(sf2_path: str, out_dir: str, options_json: str) -> Dict[str, Any]:
+def run_conversion(
+    sf2_path: str,
+    out_dir: str,
+    options_json: str,
+    progress_callback=None,
+) -> Dict[str, Any]:
     opts = _normalize_options(options_json)
 
     if opts["force_drum"] and opts["force_instrument"]:
@@ -55,6 +60,7 @@ def run_conversion(sf2_path: str, out_dir: str, options_json: str) -> Dict[str, 
         drum_velocity_mode=opts["drum_velocity_mode"],
         zero_crossing=opts["zero_crossing"],
         loop_end_offset=opts["loop_end_offset"],
+        progress_callback=progress_callback,
     )
     log["parse_warnings"] = parse_log
     return log
