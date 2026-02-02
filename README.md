@@ -29,6 +29,12 @@ python3 sf2_to_opxy.py /path/to/soundfont.sf2 --out /path/to/output \\
   --bit-depth 16
 ```
 
+Process a folder of SF2 files:
+
+```bash
+python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
+```
+
 ### Options
 
 - `--velocities`: Comma-separated MIDI velocities to keep (default `101`).
@@ -36,6 +42,7 @@ python3 sf2_to_opxy.py /path/to/soundfont.sf2 --out /path/to/output \\
 - `--no-resample`: Keep original sample rate/bit depth (default is resample to 22.05kHz/16-bit).
 - `--resample-rate`: Target sample rate when resampling (default 22050).
 - `--bit-depth`: Target bit depth (default 16).
+- `--recursive`: Scan subdirectories when the source is a folder.
 
 ## Mapping Notes
 
@@ -47,6 +54,14 @@ python3 sf2_to_opxy.py /path/to/soundfont.sf2 --out /path/to/output \\
   - Delay/hold are folded into attack/decay.
 - **FX sends:** SF2 chorus maps to OP-XY `fx.params[6]` (delay send) and SF2 reverb maps to `fx.params[7]` (reverb send).
   For best results, set FX1 to a chorus on the OP-XY so the chorus send behaves as intended.
+
+## NKI workflow
+
+This tool only accepts SF2. For NKI, use `nkitool` to export to SF2, then run this converter on the resulting SF2 files:
+
+```
+https://github.com/reales/nkitool
+```
 
 ## License
 
