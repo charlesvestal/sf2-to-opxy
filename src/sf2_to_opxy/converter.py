@@ -173,6 +173,63 @@ def _velocity_match(vel_range: Range, velocities: List[int]) -> bool:
     return any(low <= vel <= high for vel in velocities)
 
 
+def _velocity_distance(vel_range: Range, velocities: List[int]) -> int:
+    low, high = vel_range
+    best = None
+    for vel in velocities:
+        if low <= vel <= high:
+            return 0
+        dist = min(abs(vel - low), abs(vel - high))
+        if best is None or dist < best:
+            best = dist
+    return best if best is not None else 999
+
+
+def _select_drum_zones_by_velocity(
+    zones: List[Dict[str, object]],
+    velocities: List[int],
+    preset_name: str,
+    log: Dict[str, object],
+) -> List[Dict[str, object]]:
+    grouped: Dict[int, List[Dict[str, object]]] = {}
+    for zone in zones:
+        root = int(zone.get("root_key", 0))
+        grouped.setdefault(root, []).append(zone)
+
+    selected: List[Dict[str, object]] = []
+    for root, group in grouped.items():
+        best_zone = None
+        best_key = None
+        for zone in group:
+            vel_range = zone.get("vel_range", (0, 127))
+            dist = _velocity_distance(vel_range, velocities)
+            width = int(vel_range[1]) - int(vel_range[0])
+            key = (dist, width, -int(vel_range[0]))
+            if best_key is None or key < best_key:
+                best_key = key
+                best_zone = zone
+        if best_zone is not None:
+            selected.append(best_zone)
+            for zone in group:
+                if zone is best_zone:
+                    continue
+                log["discarded"].append(
+                    {
+                        "reason": "drum_velocity_choice",
+                        "selected_vel_range": best_zone.get("vel_range"),
+                        **_zone_descriptor(zone),
+                    }
+                )
+        else:
+            log["warnings"].append(
+                {
+                    "preset": preset_name,
+                    "reason": "drum_velocity_missing",
+                    "root_key": root,
+                }
+            )
+    return selected
+
 def _resample_pcm(pcm: List[int], channels: int, src_rate: int, dst_rate: int) -> List[int]:
     if src_rate == dst_rate:
         return list(pcm)
@@ -199,6 +256,7 @@ def convert_presets(
     dry_run: bool = False,
     force_mode: str | None = None,
     instrument_playmode: str = "auto",
+    drum_velocity_mode: str = "closest",
 ) -> Dict[str, object]:
     log: Dict[str, object] = {"discarded": [], "presets": [], "warnings": []}
     if bit_depth != 16:
@@ -206,13 +264,16 @@ def convert_presets(
     if not dry_run:
         os.makedirs(out_root, exist_ok=True)
 
-    def write_preset(preset_name: str, preset: Dict[str, object], zones: List[Dict[str, object]]) -> None:
+    def _resolve_is_drum(preset: Dict[str, object]) -> bool:
         is_drum = bool(preset.get("is_drum"))
         if force_mode == "drum":
-            is_drum = True
-        elif force_mode == "instrument":
-            is_drum = False
-        if is_drum:
+            return True
+        if force_mode == "instrument":
+            return False
+        return is_drum
+
+    def write_preset(preset_name: str, preset: Dict[str, object], zones: List[Dict[str, object]]) -> None:
+        if _resolve_is_drum(preset):
             _write_drum_preset(preset_name, zones)
         else:
             _write_multisample_preset(preset_name, zones)
@@ -383,17 +444,17 @@ def convert_presets(
                     }
                 )
 
-        if not dry_run:
-            preset_dir = os.path.join(out_root, _sanitize_name(name))
-            write_drum_preset(
-                {
-                    "name": name,
-                    "regions": regions,
-                    "envelope": {"amp": amp_env, "filter": filter_env},
-                    "fx": fx_send,
-                },
-                preset_dir,
-            )
+            if not dry_run:
+                preset_dir = os.path.join(out_root, _sanitize_name(name))
+                write_drum_preset(
+                    {
+                        "name": name,
+                        "regions": regions,
+                        "envelope": {"amp": amp_env, "filter": filter_env},
+                        "fx": fx_send,
+                    },
+                    preset_dir,
+                )
             log["presets"].append(
                 {
                     "name": name,
@@ -407,6 +468,7 @@ def convert_presets(
     for preset in presets:
         preset_name = preset.get("name", "Preset")
         zones = preset.get("zones", [])
+        is_drum = _resolve_is_drum(preset)
 
         if velocity_mode == "split":
             for velocity in velocities:
@@ -426,19 +488,22 @@ def convert_presets(
                 variant = f"{preset_name}_vel{velocity}"
                 write_preset(variant, preset, filtered)
         else:
-            filtered = []
-            for zone in zones:
-                vel_range = zone.get("vel_range", (0, 127))
-                if _velocity_match(vel_range, velocities):
-                    filtered.append(zone)
-                else:
-                    log["discarded"].append(
-                        {
-                            "reason": "velocity_filtered",
-                            "velocities": velocities,
-                            **_zone_descriptor(zone),
-                        }
-                    )
+            if is_drum and drum_velocity_mode == "closest":
+                filtered = _select_drum_zones_by_velocity(zones, velocities, preset_name, log)
+            else:
+                filtered = []
+                for zone in zones:
+                    vel_range = zone.get("vel_range", (0, 127))
+                    if _velocity_match(vel_range, velocities):
+                        filtered.append(zone)
+                    else:
+                        log["discarded"].append(
+                            {
+                                "reason": "velocity_filtered",
+                                "velocities": velocities,
+                                **_zone_descriptor(zone),
+                            }
+                        )
             write_preset(preset_name, preset, filtered)
 
     return log

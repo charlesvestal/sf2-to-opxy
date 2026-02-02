@@ -62,6 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="Playmode for multisample presets",
     )
+    parser.add_argument(
+        "--drum-velocity-mode",
+        choices=["closest", "strict"],
+        default="closest",
+        help="How to select drum zones for a target velocity",
+    )
     return parser
 
 
@@ -105,6 +111,7 @@ def run(args: argparse.Namespace) -> int:
                 resample=not args.no_resample,
                 force_mode=force_mode,
                 instrument_playmode=args.instrument_playmode,
+                drum_velocity_mode=args.drum_velocity_mode,
             )
             log["parse_warnings"] = parse_log
             log["source"] = sf2_path

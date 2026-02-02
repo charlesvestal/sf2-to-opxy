@@ -46,6 +46,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - `--force-drum`: Force all presets to drum kits (ignores detection).
 - `--force-instrument`: Force all presets to multisample instruments (ignores detection).
 - `--instrument-playmode`: Playmode for multisample presets (`auto|poly|mono|legato`).
+- `--drum-velocity-mode`: Drum velocity selection (`closest|strict`). `closest` keeps one zone per drum note closest to the target velocity.
 
 ## Mapping Notes
 
@@ -59,6 +60,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
   For best results, set FX1 to a chorus on the OP-XY so the chorus send behaves as intended.
 - **Drum detection:** Drum kits are detected by bank 128 plus a name/keyrange heuristic (e.g. "Drum", "Kit", many single-note zones).
 - **Choke groups:** SF2 exclusive class values are mapped to drum regions with playmode `group` (single mute group in OP-XY). Multiple exclusive classes are logged.
+- **Drum velocities:** When `--velocity-mode keep`, drum kits use the closest velocity layer per note (so missing notes are filled without borrowing from other presets). Use `--drum-velocity-mode strict` to keep only exact velocity ranges.
 
 ## NKI workflow
 
