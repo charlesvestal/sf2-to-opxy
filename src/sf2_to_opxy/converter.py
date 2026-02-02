@@ -21,6 +21,12 @@ ZERO_CROSS_THRESHOLD = 1
 ZERO_CROSS_MAX_DISTANCE = 1000
 
 
+def apply_loop_end_offset(loop_start: int, loop_end: int, framecount: int, offset: int) -> int:
+    adjusted = loop_end + offset
+    adjusted = max(loop_start + 1, min(adjusted, framecount))
+    return adjusted
+
+
 def timecents_to_seconds(timecents: float) -> float:
     return 2 ** (timecents / 1200.0)
 
@@ -412,6 +418,7 @@ def convert_presets(
     zero_crossing: bool = False,
     zero_crossing_max_distance: int = ZERO_CROSS_MAX_DISTANCE,
     zero_crossing_threshold: int = ZERO_CROSS_THRESHOLD,
+    loop_end_offset: int = 0,
 ) -> Dict[str, object]:
     log: Dict[str, object] = {"discarded": [], "presets": [], "warnings": []}
     if bit_depth != 16:
@@ -489,6 +496,8 @@ def convert_presets(
             if loop_enabled:
                 loop_start = max(0, min(loop_start, framecount - 1))
                 loop_end = max(loop_start + 1, min(loop_end, framecount))
+                if loop_end_offset:
+                    loop_end = apply_loop_end_offset(loop_start, loop_end, framecount, loop_end_offset)
                 if loop_end <= loop_start:
                     loop_enabled = False
                     log["warnings"].append(

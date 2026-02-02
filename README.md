@@ -41,6 +41,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - `--velocity-mode keep|split`: `keep` uses a single preset per instrument, `split` outputs one preset per velocity.
 - `--no-resample`: Keep original sample rate/bit depth (default is resample to 22.05kHz/16-bit).
 - `--zero-crossing`: Enable snapping loop points to nearest zero crossing (default off).
+- `--loop-end-offset`: Adjust loop end by N frames (use `-1` to match end-exclusive loop behavior in some players).
 - `--resample-rate`: Target sample rate when resampling (default 22050).
 - `--bit-depth`: Target bit depth (default 16).
 - `--recursive`: Scan subdirectories when the source is a folder.

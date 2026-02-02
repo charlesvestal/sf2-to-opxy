@@ -69,6 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--force-drum", action="store_true", help="Force all presets to drum kits")
     parser.add_argument("--force-instrument", action="store_true", help="Force all presets to instruments")
     parser.add_argument(
+        "--loop-end-offset",
+        type=int,
+        default=0,
+        help="Adjust loop end by this many frames (use -1 for FluidSynth-style end-exclusive loops)",
+    )
+    parser.add_argument(
         "--instrument-playmode",
         choices=["auto", "poly", "mono", "legato"],
         default="auto",
@@ -125,6 +131,7 @@ def run(args: argparse.Namespace) -> int:
                 instrument_playmode=args.instrument_playmode,
                 drum_velocity_mode=args.drum_velocity_mode,
                 zero_crossing=args.zero_crossing,
+                loop_end_offset=args.loop_end_offset,
             )
             log["parse_warnings"] = parse_log
             log["source"] = sf2_path
