@@ -53,6 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resample-rate", type=int, default=22050)
     parser.add_argument("--bit-depth", type=int, default=16)
     parser.add_argument("--no-resample", action="store_true")
+    parser.add_argument("--no-zero-crossing", action="store_true", help="Disable loop zero-crossing snapping")
     parser.add_argument("--recursive", action="store_true", help="Scan subdirectories for .sf2 files")
     parser.add_argument("--force-drum", action="store_true", help="Force all presets to drum kits")
     parser.add_argument("--force-instrument", action="store_true", help="Force all presets to instruments")
@@ -112,6 +113,7 @@ def run(args: argparse.Namespace) -> int:
                 force_mode=force_mode,
                 instrument_playmode=args.instrument_playmode,
                 drum_velocity_mode=args.drum_velocity_mode,
+                zero_crossing=not args.no_zero_crossing,
             )
             log["parse_warnings"] = parse_log
             log["source"] = sf2_path

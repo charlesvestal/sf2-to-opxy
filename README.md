@@ -40,6 +40,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - `--velocities`: Comma-separated MIDI velocities to keep (default `101`).
 - `--velocity-mode keep|split`: `keep` uses a single preset per instrument, `split` outputs one preset per velocity.
 - `--no-resample`: Keep original sample rate/bit depth (default is resample to 22.05kHz/16-bit).
+- `--no-zero-crossing`: Disable snapping loop points to nearest zero crossing.
 - `--resample-rate`: Target sample rate when resampling (default 22050).
 - `--bit-depth`: Target bit depth (default 16).
 - `--recursive`: Scan subdirectories when the source is a folder.
@@ -61,6 +62,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - **Drum detection:** Drum kits are detected by bank 128 plus a name/keyrange heuristic (e.g. "Drum", "Kit", many single-note zones).
 - **Choke groups:** SF2 exclusive class values are mapped to drum regions with playmode `group` (single mute group in OP-XY). Multiple exclusive classes are logged.
 - **Drum velocities:** When `--velocity-mode keep`, drum kits use the closest velocity layer per note (so missing notes are filled without borrowing from other presets). Use `--drum-velocity-mode strict` to keep only exact velocity ranges.
+- **Loop zero crossing:** Loop start/end points are snapped to the nearest zero crossing (within a small window) to reduce clicks. Use `--no-zero-crossing` to disable.
 
 ## NKI workflow
 

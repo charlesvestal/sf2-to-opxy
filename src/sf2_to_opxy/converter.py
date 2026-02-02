@@ -15,6 +15,8 @@ ATTACK_MIN_SECONDS = 0.0111
 ATTACK_CURVE_B = 10.386
 ATTACK_MAX_SECONDS = 360.0
 RELEASE_MAX_SECONDS = 30.0
+ZERO_CROSS_THRESHOLD = 1
+ZERO_CROSS_MAX_DISTANCE = 1000
 
 
 def timecents_to_seconds(timecents: float) -> float:
@@ -173,6 +175,118 @@ def _velocity_match(vel_range: Range, velocities: List[int]) -> bool:
     return any(low <= vel <= high for vel in velocities)
 
 
+def _frame_amplitude(pcm: List[int], frame_idx: int, channels: int) -> int:
+    start = frame_idx * channels
+    end = start + channels
+    max_amp = 0
+    for i in range(start, end):
+        value = pcm[i]
+        if value < 0:
+            value = -value
+        if value > max_amp:
+            max_amp = value
+    return max_amp
+
+
+def _find_nearest_zero_crossing(
+    pcm: List[int],
+    channels: int,
+    frame_position: int,
+    direction: str = "both",
+    max_distance: int = ZERO_CROSS_MAX_DISTANCE,
+    min_frame: int = 0,
+    max_frame: int | None = None,
+    threshold: int = ZERO_CROSS_THRESHOLD,
+) -> int:
+    framecount = len(pcm) // channels
+    if max_frame is None:
+        max_frame = max(0, framecount - 1)
+    frame_position = max(min_frame, min(frame_position, max_frame))
+
+    if direction == "forward":
+        search_start = frame_position
+        search_end = min(frame_position + max_distance, max_frame)
+    elif direction == "backward":
+        search_start = max(frame_position - max_distance, min_frame)
+        search_end = frame_position
+    else:
+        search_start = max(frame_position - max_distance, min_frame)
+        search_end = min(frame_position + max_distance, max_frame)
+
+    best_position = frame_position
+    min_amplitude = _frame_amplitude(pcm, frame_position, channels)
+    for i in range(search_start, search_end + 1):
+        amplitude = _frame_amplitude(pcm, i, channels)
+        if amplitude < min_amplitude:
+            min_amplitude = amplitude
+            best_position = i
+            if amplitude <= threshold:
+                break
+    return best_position
+
+
+def _adjust_loop_zero_crossing(
+    pcm: List[int],
+    channels: int,
+    loop_start: int,
+    loop_end: int,
+    max_distance: int,
+    threshold: int,
+    preset_name: str,
+    zone: Dict[str, object],
+    log: Dict[str, object],
+) -> Tuple[int, int]:
+    if loop_end <= loop_start:
+        return loop_start, loop_end
+    framecount = len(pcm) // channels
+    if framecount <= 1:
+        return loop_start, loop_end
+
+    max_frame = framecount - 1
+    original_start = loop_start
+    original_end = loop_end
+    loop_start = max(0, min(loop_start, max_frame))
+    loop_end = max(loop_start + 1, min(loop_end, max_frame))
+
+    adjusted_start = _find_nearest_zero_crossing(
+        pcm,
+        channels,
+        loop_start,
+        direction="both",
+        max_distance=max_distance,
+        min_frame=0,
+        max_frame=max(loop_end - 1, 0),
+        threshold=threshold,
+    )
+    adjusted_end = _find_nearest_zero_crossing(
+        pcm,
+        channels,
+        loop_end,
+        direction="both",
+        max_distance=max_distance,
+        min_frame=min(adjusted_start + 1, max_frame),
+        max_frame=max_frame,
+        threshold=threshold,
+    )
+
+    if adjusted_end <= adjusted_start:
+        return original_start, original_end
+
+    if adjusted_start != original_start or adjusted_end != original_end:
+        log["warnings"].append(
+            {
+                "preset": preset_name,
+                "reason": "loop_zero_crossing_adjusted",
+                "original_start": original_start,
+                "original_end": original_end,
+                "adjusted_start": adjusted_start,
+                "adjusted_end": adjusted_end,
+                **_zone_descriptor(zone),
+            }
+        )
+    return adjusted_start, adjusted_end
+
+
 def _velocity_distance(vel_range: Range, velocities: List[int]) -> int:
     low, high = vel_range
     best = None
@@ -257,6 +371,9 @@ def convert_presets(
     force_mode: str | None = None,
     instrument_playmode: str = "auto",
     drum_velocity_mode: str = "closest",
+    zero_crossing: bool = True,
+    zero_crossing_max_distance: int = ZERO_CROSS_MAX_DISTANCE,
+    zero_crossing_threshold: int = ZERO_CROSS_THRESHOLD,
 ) -> Dict[str, object]:
     log: Dict[str, object] = {"discarded": [], "presets": [], "warnings": []}
     if bit_depth != 16:
@@ -332,6 +449,18 @@ def convert_presets(
                     loop_enabled = False
                     log["warnings"].append(
                         {"preset": preset_name, "reason": "invalid_loop", **_zone_descriptor(zone)}
+                    )
+                elif zero_crossing:
+                    loop_start, loop_end = _adjust_loop_zero_crossing(
+                        pcm,
+                        channels,
+                        loop_start,
+                        loop_end,
+                        zero_crossing_max_distance,
+                        zero_crossing_threshold,
+                        preset_name,
+                        zone,
+                        log,
                     )
             else:
                 loop_start = 0
