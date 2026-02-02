@@ -168,7 +168,7 @@ def write_drum_preset(preset: Dict[str, object], out_dir: str) -> None:
                 "lokey": region["midi_note"],
                 "pan": 0,
                 "pitch.keycenter": 60,
-                "playmode": "oneshot",
+                "playmode": region.get("playmode", "oneshot"),
                 "reverse": False,
                 "sample": region["sample"],
                 "transpose": 0,

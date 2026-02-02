@@ -329,6 +329,17 @@ def convert_presets(
             log["warnings"].append({"preset": preset_name, "reason": "no_zones"})
             return
         zones_sorted = sorted(zones, key=lambda z: int(z.get("root_key", 0)))
+        exclusive_classes = sorted(
+            {int(z.get("exclusive_class", 0)) for z in zones_sorted if int(z.get("exclusive_class", 0)) > 0}
+        )
+        if len(exclusive_classes) > 1:
+            log["warnings"].append(
+                {
+                    "preset": preset_name,
+                    "reason": "multiple_exclusive_classes",
+                    "classes": exclusive_classes,
+                }
+            )
         amp_env = _derive_envelope(zones_sorted, "amp_env", preset_name, log)
         filter_env = _derive_envelope(zones_sorted, "mod_env", preset_name, log)
         fx_send = _derive_fx(zones_sorted, preset_name, log)
@@ -345,6 +356,7 @@ def convert_presets(
                 pcm = sample["data"]
                 channels = int(sample.get("channels", 1))
                 source_rate = int(sample.get("rate", resample_rate))
+                playmode = "group" if int(zone.get("exclusive_class", 0)) > 0 else "oneshot"
 
                 if resample:
                     pcm = _resample_pcm(pcm, channels, source_rate, resample_rate)
@@ -367,6 +379,7 @@ def convert_presets(
                         "channels": channels,
                         "framecount": framecount,
                         "midi_note": 53 + slot,
+                        "playmode": playmode,
                     }
                 )
 

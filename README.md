@@ -58,6 +58,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - **FX sends:** SF2 chorus maps to OP-XY `fx.params[6]` (delay send) and SF2 reverb maps to `fx.params[7]` (reverb send).
   For best results, set FX1 to a chorus on the OP-XY so the chorus send behaves as intended.
 - **Drum detection:** Drum kits are detected by bank 128 plus a name/keyrange heuristic (e.g. "Drum", "Kit", many single-note zones).
+- **Choke groups:** SF2 exclusive class values are mapped to drum regions with playmode `group` (single mute group in OP-XY). Multiple exclusive classes are logged.
 
 ## NKI workflow
 
