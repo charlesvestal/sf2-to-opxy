@@ -38,6 +38,8 @@ npm --prefix web run dev
 GitHub Pages deployment is automated via `.github/workflows/pages.yml` and uses
 `BASE_URL=/<repo>/` for the Vite base path.
 
+During conversion the status line shows preset progress (e.g. “Converted 12 / 128 presets”).
+
 ## Usage
 
 ```bash
