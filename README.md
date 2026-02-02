@@ -19,6 +19,22 @@ python3 -m pip install -r requirements.txt -r requirements-dev.txt
 python3 sf2_to_opxy.py /path/to/soundfont.sf2 --out /path/to/output
 ```
 
+## Web app (GitHub Pages)
+
+The browser converter lives in `web/` and is built with Vite. The build step runs
+`tools/gen_web_py_manifest.py` to copy Python sources into `web/public/py/`.
+
+```bash
+npm --prefix web install
+npm --prefix web run build
+```
+
+For local dev:
+
+```bash
+npm --prefix web run dev
+```
+
 ## Usage
 
 ```bash

@@ -1,0 +1,14 @@
+{
+  "files": [
+    "sf2_to_opxy/__init__.py",
+    "sf2_to_opxy/audio.py",
+    "sf2_to_opxy/cli.py",
+    "sf2_to_opxy/converter.py",
+    "sf2_to_opxy/loop_variants.py",
+    "sf2_to_opxy/opxy_writer.py",
+    "sf2_to_opxy/preview.py",
+    "sf2_to_opxy/selection.py",
+    "sf2_to_opxy/sf2_reader.py",
+    "web_entry.py"
+  ]
+}
