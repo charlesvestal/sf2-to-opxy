@@ -11,10 +11,12 @@ from sf2_to_opxy.selection import assign_key_ranges, select_zones_for_88_keys
 
 
 Range = Tuple[int, int]
-ATTACK_MIN_SECONDS = 0.0111
-ATTACK_CURVE_B = 10.386
-ATTACK_MAX_SECONDS = 360.0
-RELEASE_MAX_SECONDS = 30.0
+ATTACK_MIN_SECONDS = 0.01037
+ATTACK_MAX_SECONDS = 365.0
+ATTACK_CURVE_B = 10.4687
+RELEASE_MIN_SECONDS = 2.405
+RELEASE_MAX_SECONDS = 16.325
+RELEASE_CURVE_P = 0.9572
 ZERO_CROSS_THRESHOLD = 1
 ZERO_CROSS_MAX_DISTANCE = 1000
 
@@ -40,13 +42,16 @@ def scale_attack_seconds(seconds: float, max_seconds: float = ATTACK_MAX_SECONDS
     return int(round(x * 32767))
 
 
-def scale_release_seconds(seconds: float, max_seconds: float = RELEASE_MAX_SECONDS) -> int:
-    if seconds <= 0:
+def scale_release_seconds(seconds: float) -> int:
+    if seconds <= RELEASE_MIN_SECONDS:
         return 32767
-    clipped = min(seconds, max_seconds)
-    ratio = clipped / max_seconds
-    inverted = 1.0 - ratio ** (1.0 / 3.0)
-    return int(round(inverted * 32767))
+    if seconds >= RELEASE_MAX_SECONDS:
+        return 0
+    normalized = (seconds - RELEASE_MIN_SECONDS) / (RELEASE_MAX_SECONDS - RELEASE_MIN_SECONDS)
+    normalized = max(0.0, min(1.0, normalized))
+    x = 1.0 - normalized ** (1.0 / RELEASE_CURVE_P)
+    x = max(0.0, min(1.0, x))
+    return int(round(x * 32767))
 
 
 def map_fx_send(percent: float) -> int:
@@ -404,7 +409,7 @@ def convert_presets(
     force_mode: str | None = None,
     instrument_playmode: str = "auto",
     drum_velocity_mode: str = "closest",
-    zero_crossing: bool = True,
+    zero_crossing: bool = False,
     zero_crossing_max_distance: int = ZERO_CROSS_MAX_DISTANCE,
     zero_crossing_threshold: int = ZERO_CROSS_THRESHOLD,
 ) -> Dict[str, object]:

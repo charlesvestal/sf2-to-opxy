@@ -40,7 +40,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - `--velocities`: Comma-separated MIDI velocities to keep (default `101`).
 - `--velocity-mode keep|split`: `keep` uses a single preset per instrument, `split` outputs one preset per velocity.
 - `--no-resample`: Keep original sample rate/bit depth (default is resample to 22.05kHz/16-bit).
-- `--no-zero-crossing`: Disable snapping loop points to nearest zero crossing.
+- `--zero-crossing`: Enable snapping loop points to nearest zero crossing (default off).
 - `--resample-rate`: Target sample rate when resampling (default 22050).
 - `--bit-depth`: Target bit depth (default 16).
 - `--recursive`: Scan subdirectories when the source is a folder.
@@ -55,8 +55,8 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - **Key ranges:** If an instrument has 24 zones or fewer, original SF2 key ranges are preserved (clamped to A0–C8).
 - **Velocity layers:** By default we keep velocity 101. You can pass multiple velocities or split into separate presets.
 - **Envelopes:** SF2 timecents are converted to seconds and scaled into OP-XY 0–32767 envelope values.
-  - Attack/decay use an exponential curve with ~360s max (fits 50% ≈ 2s, 75% ≈ 26s).
-  - Release uses an inverted cubic curve with ~30s max.
+  - Attack/decay use an exponential curve with ~365s max (fits 50% ≈ 2s, 75% ≈ 26s).
+  - Release uses an offset power curve tuned to the measured 10% amplitude target (≈2.4s floor, ≈16.3s max).
   - Delay/hold are folded into attack/decay.
 - **Per-zone gain:** SF2 initial attenuation is mapped to region gain (in dB).
 - **Fine tune:** SF2 fine-tune (cents) and sample pitch correction are mapped to region tune.
@@ -65,7 +65,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - **Drum detection:** Drum kits are detected by bank 128 plus a name/keyrange heuristic (e.g. "Drum", "Kit", many single-note zones).
 - **Choke groups:** SF2 exclusive class values are mapped to drum regions with playmode `group` (single mute group in OP-XY). Multiple exclusive classes are logged.
 - **Drum velocities:** When `--velocity-mode keep`, drum kits use the closest velocity layer per note (so missing notes are filled without borrowing from other presets). Use `--drum-velocity-mode strict` to keep only exact velocity ranges.
-- **Loop zero crossing:** Loop start/end points are snapped to the nearest zero crossing (within a small window) to reduce clicks. Use `--no-zero-crossing` to disable.
+- **Loop zero crossing:** Loop start/end points can be snapped to the nearest zero crossing (within a small window) to reduce clicks. Use `--zero-crossing` to enable.
 
 ## NKI workflow
 
@@ -74,6 +74,37 @@ This tool only accepts SF2. For NKI, use `nkitool` to export to SF2, then run th
 ```
 https://github.com/reales/nkitool
 ```
+
+## Calibration workflow (envelope validation)
+
+To validate the OP-XY envelope mapping, generate calibration presets, record a single WAV with hits in order, and analyze it.
+
+1) Generate presets:
+
+```bash
+python3 tools/generate_calibration_presets.py --out /path/to/opxy-calibration
+```
+
+This writes presets plus a `calibration-manifest.json` describing the exact order.
+To better measure release tails, you can enable looping during release:
+
+```bash
+python3 tools/generate_calibration_presets.py --out /path/to/opxy-calibration --release-loop-on
+```
+
+2) Copy the presets to the OP-XY and record **one WAV** with hits in manifest order.
+   - Use a fixed note length (default hold time is 1.0s in the manifest).
+   - Leave silence after each hit so onsets are easy to detect.
+
+3) Analyze the recording:
+
+```bash
+python3 tools/analyze_envelope.py --wav /path/to/recording.wav --manifest /path/to/opxy-calibration/calibration-manifest.json --hold-seconds 1.0
+```
+
+This produces `/path/to/recording.analysis.json` with measured attack/release times and a fitted curve estimate.
+
+Note: `tools/analyze_envelope.py` uses `numpy` (listed in `requirements-dev.txt`).
 
 ## License
 
