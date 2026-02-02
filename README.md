@@ -81,6 +81,17 @@ python3 tools/render_loop_preview.py \\
 
 This writes WAVs for offsets `-1,0,1` plus a `manifest.json` with loop metadata.
 
+To create multiple OP-XY presets with different loop-end offsets:
+
+```bash
+python3 tools/make_loop_offset_variants.py \\
+  --preset /path/to/Choir_Aahs.preset \\
+  --offsets -1,0,1 \\
+  --base-offset -1
+```
+
+Use `--base-offset` if the source preset already had an offset applied.
+
 ## NKI workflow
 
 This tool only accepts SF2. For NKI, use `nkitool` to export to SF2, then run this converter on the resulting SF2 files:
