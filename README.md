@@ -68,6 +68,19 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - **Drum velocities:** When `--velocity-mode keep`, drum kits use the closest velocity layer per note (so missing notes are filled without borrowing from other presets). Use `--drum-velocity-mode strict` to keep only exact velocity ranges.
 - **Loop zero crossing:** Loop start/end points can be snapped to the nearest zero crossing (within a small window) to reduce clicks. Use `--zero-crossing` to enable.
 
+## Loop preview tool
+
+To compare loop end semantics, render a short preview WAV with multiple loop iterations:
+
+```bash
+python3 tools/render_loop_preview.py \\
+  --sf2 /path/to/soundfont.sf2 \\
+  --preset \"Choir Aahs\" \\
+  --out /path/to/output
+```
+
+This writes WAVs for offsets `-1,0,1` plus a `manifest.json` with loop metadata.
+
 ## NKI workflow
 
 This tool only accepts SF2. For NKI, use `nkitool` to export to SF2, then run this converter on the resulting SF2 files:
