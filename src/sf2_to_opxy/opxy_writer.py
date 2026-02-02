@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Dict
 
 from sf2_to_opxy.audio import write_wav
@@ -95,15 +96,23 @@ def _apply_fx(patch: Dict[str, object], fx: Dict[str, object] | None) -> None:
     patch["fx"]["active"] = params[6] > 0 or params[7] > 0
 
 
+def ensure_preset_dir(path: os.PathLike[str] | str) -> Path:
+    out_dir = Path(path)
+    if out_dir.suffix != ".preset":
+        out_dir = out_dir.with_suffix(out_dir.suffix + ".preset" if out_dir.suffix else ".preset")
+    return out_dir
+
+
 def write_multisample_preset(preset: Dict[str, object], out_dir: str) -> None:
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir_path = ensure_preset_dir(out_dir)
+    os.makedirs(out_dir_path, exist_ok=True)
     patch = json.loads(json.dumps(BASE_MULTISAMPLE))
     patch["name"] = preset["name"]
     _apply_envelope(patch, preset.get("envelope"))
     _apply_fx(patch, preset.get("fx"))
     patch["regions"] = []
     for region in preset["regions"]:
-        wav_path = os.path.join(out_dir, region["sample"])
+        wav_path = os.path.join(out_dir_path, region["sample"])
         wav_bytes = write_wav(region["pcm"], region["sample_rate"], region["channels"], 16)
         with open(wav_path, "wb") as handle:
             handle.write(wav_bytes)
@@ -126,19 +135,20 @@ def write_multisample_preset(preset: Dict[str, object], out_dir: str) -> None:
                 "tune": 0,
             }
         )
-    with open(os.path.join(out_dir, "patch.json"), "w", encoding="utf-8") as handle:
+    with open(os.path.join(out_dir_path, "patch.json"), "w", encoding="utf-8") as handle:
         json.dump(patch, handle, indent=2)
 
 
 def write_drum_preset(preset: Dict[str, object], out_dir: str) -> None:
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir_path = ensure_preset_dir(out_dir)
+    os.makedirs(out_dir_path, exist_ok=True)
     patch = json.loads(json.dumps(BASE_DRUM))
     patch["name"] = preset["name"]
     _apply_envelope(patch, preset.get("envelope"))
     _apply_fx(patch, preset.get("fx"))
     patch["regions"] = []
     for region in preset["regions"]:
-        wav_path = os.path.join(out_dir, region["sample"])
+        wav_path = os.path.join(out_dir_path, region["sample"])
         wav_bytes = write_wav(region["pcm"], region["sample_rate"], region["channels"], 16)
         with open(wav_path, "wb") as handle:
             handle.write(wav_bytes)
@@ -161,5 +171,5 @@ def write_drum_preset(preset: Dict[str, object], out_dir: str) -> None:
                 "sample.end": region["framecount"],
             }
         )
-    with open(os.path.join(out_dir, "patch.json"), "w", encoding="utf-8") as handle:
+    with open(os.path.join(out_dir_path, "patch.json"), "w", encoding="utf-8") as handle:
         json.dump(patch, handle, indent=2)
