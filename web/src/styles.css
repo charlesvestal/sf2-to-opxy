@@ -1,0 +1,27 @@
+:root {
+  color-scheme: light;
+  font-family: "Space Grotesk", sans-serif;
+  background: radial-gradient(circle at top, #f5f7ff, #e0e5f5 60%, #cbd3ee);
+}
+
+body {
+  margin: 0;
+  color: #1b2140;
+}
+
+.app {
+  padding: 4rem 6vw;
+}
+
+header h1 {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  margin: 0 0 0.5rem;
+}
+
+#status {
+  margin-top: 2rem;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 12px 30px rgba(27, 33, 64, 0.15);
+}
