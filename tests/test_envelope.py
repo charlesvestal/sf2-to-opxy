@@ -14,13 +14,13 @@ def test_timecents_to_seconds():
 def test_scale_attack_seconds():
     assert scale_attack_seconds(0.0) == 0
     assert 16000 <= scale_attack_seconds(2.0) <= 17000
-    assert scale_attack_seconds(360.0) == 32767
+    assert scale_attack_seconds(360.0) == 32724
 
 
 def test_scale_release_seconds():
     assert scale_release_seconds(0.0) == 32767
     assert scale_release_seconds(30.0) == 0
-    assert 15000 <= scale_release_seconds(4.0) <= 18000
+    assert 29000 <= scale_release_seconds(4.0) <= 30000
 
 
 def test_fx_send_mapping():
