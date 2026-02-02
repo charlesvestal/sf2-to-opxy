@@ -54,10 +54,28 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bit-depth", type=int, default=16)
     parser.add_argument("--no-resample", action="store_true")
     parser.add_argument("--recursive", action="store_true", help="Scan subdirectories for .sf2 files")
+    parser.add_argument("--force-drum", action="store_true", help="Force all presets to drum kits")
+    parser.add_argument("--force-instrument", action="store_true", help="Force all presets to instruments")
+    parser.add_argument(
+        "--instrument-playmode",
+        choices=["auto", "poly", "mono", "legato"],
+        default="auto",
+        help="Playmode for multisample presets",
+    )
     return parser
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.force_drum and args.force_instrument:
+        print("Cannot use --force-drum and --force-instrument together.", file=sys.stderr)
+        return 2
+    if args.force_drum:
+        force_mode = "drum"
+    elif args.force_instrument:
+        force_mode = "instrument"
+    else:
+        force_mode = None
+
     sf2_paths = _gather_sf2_paths(args.source, args.recursive)
     if not sf2_paths:
         print(f"No .sf2 files found in {args.source}", file=sys.stderr)
@@ -85,6 +103,8 @@ def run(args: argparse.Namespace) -> int:
                 args.resample_rate,
                 args.bit_depth,
                 resample=not args.no_resample,
+                force_mode=force_mode,
+                instrument_playmode=args.instrument_playmode,
             )
             log["parse_warnings"] = parse_log
             log["source"] = sf2_path

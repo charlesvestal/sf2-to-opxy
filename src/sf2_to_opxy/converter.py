@@ -135,6 +135,18 @@ def _derive_fx(zones: List[Dict[str, object]], preset_name: str, log: Dict[str, 
         "reverb_percent": reverb,
     }
 
+
+def _auto_playmode(preset_name: str, zones: List[Dict[str, object]]) -> str:
+    name = (preset_name or "").lower()
+    if "legato" in name or "porta" in name or "portamento" in name:
+        return "legato"
+    if "mono" in name:
+        return "mono"
+    for zone in zones:
+        if int(zone.get("exclusive_class", 0)) > 0:
+            return "mono"
+    return "poly"
+
 def _sanitize_name(value: str) -> str:
     keep = []
     for ch in value:
@@ -185,6 +197,8 @@ def convert_presets(
     bit_depth: int,
     resample: bool = True,
     dry_run: bool = False,
+    force_mode: str | None = None,
+    instrument_playmode: str = "auto",
 ) -> Dict[str, object]:
     log: Dict[str, object] = {"discarded": [], "presets": [], "warnings": []}
     if bit_depth != 16:
@@ -193,7 +207,12 @@ def convert_presets(
         os.makedirs(out_root, exist_ok=True)
 
     def write_preset(preset_name: str, preset: Dict[str, object], zones: List[Dict[str, object]]) -> None:
-        if preset.get("is_drum"):
+        is_drum = bool(preset.get("is_drum"))
+        if force_mode == "drum":
+            is_drum = True
+        elif force_mode == "instrument":
+            is_drum = False
+        if is_drum:
             _write_drum_preset(preset_name, zones)
         else:
             _write_multisample_preset(preset_name, zones)
@@ -218,6 +237,10 @@ def convert_presets(
         amp_env = _derive_envelope(selected, "amp_env", preset_name, log)
         filter_env = _derive_envelope(selected, "mod_env", preset_name, log)
         fx_send = _derive_fx(selected, preset_name, log)
+        if instrument_playmode == "auto":
+            playmode = _auto_playmode(preset_name, selected)
+        else:
+            playmode = instrument_playmode
 
         seen_names: Dict[str, int] = {}
         regions = []
@@ -286,6 +309,7 @@ def convert_presets(
                     "regions": regions,
                     "envelope": {"amp": amp_env, "filter": filter_env},
                     "fx": fx_send,
+                    "playmode": playmode,
                 },
                 preset_dir,
             )
@@ -296,6 +320,7 @@ def convert_presets(
                 "kept": len(selected),
                 "fx": fx_send,
                 "envelope": {"amp": amp_env, "filter": filter_env},
+                "playmode": playmode,
             }
         )
 
@@ -345,17 +370,17 @@ def convert_presets(
                     }
                 )
 
-            if not dry_run:
-                preset_dir = os.path.join(out_root, _sanitize_name(name))
-                write_drum_preset(
-                    {
-                        "name": name,
-                        "regions": regions,
-                        "envelope": {"amp": amp_env, "filter": filter_env},
-                        "fx": fx_send,
-                    },
-                    preset_dir,
-                )
+        if not dry_run:
+            preset_dir = os.path.join(out_root, _sanitize_name(name))
+            write_drum_preset(
+                {
+                    "name": name,
+                    "regions": regions,
+                    "envelope": {"amp": amp_env, "filter": filter_env},
+                    "fx": fx_send,
+                },
+                preset_dir,
+            )
             log["presets"].append(
                 {
                     "name": name,

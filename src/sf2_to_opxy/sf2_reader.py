@@ -7,6 +7,14 @@ from typing import Dict, List, Optional, Tuple
 
 
 Range = Tuple[int, int]
+DRUM_NAME_TOKENS = (
+    "drum",
+    "drums",
+    "kit",
+    "perc",
+    "percussion",
+    "beat",
+)
 
 
 def _ensure_audioop() -> None:
@@ -181,6 +189,31 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
             return a
         return max(a[0], b[0]), min(a[1], b[1])
 
+    def _looks_like_drum(preset_name: str, zones: List[Dict[str, object]]) -> Optional[str]:
+        name = (preset_name or "").lower()
+        if any(token in name for token in DRUM_NAME_TOKENS):
+            return "name"
+        for zone in zones:
+            instrument_name = str(zone.get("instrument", "")).lower()
+            if any(token in instrument_name for token in DRUM_NAME_TOKENS):
+                return "instrument_name"
+        if not zones:
+            return None
+        narrow = 0
+        roots = set()
+        for zone in zones:
+            key_range = zone.get("key_range", (0, 127))
+            if key_range[0] == key_range[1]:
+                narrow += 1
+            root_key = zone.get("root_key")
+            if root_key is not None:
+                roots.add(int(root_key))
+        if roots:
+            ratio = narrow / max(1, len(zones))
+            if ratio >= 0.7 and len(roots) >= min(8, len(zones)):
+                return "single_note_zones"
+        return None
+
     presets: List[Dict[str, object]] = []
 
     for preset in sf2.presets:
@@ -353,6 +386,7 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
 
                 chorus_send_raw, chorus_present = _sum_word(bags, Sf2Gen.OPER_CHORUS_EFFECTS_SEND)
                 reverb_send_raw, reverb_present = _sum_word(bags, Sf2Gen.OPER_REVERB_EFFECTS_SEND)
+                exclusive_class = _first_word(bags, Sf2Gen.OPER_EXCLUSIVE_CLASS)
 
                 preset_zones.append(
                     {
@@ -412,14 +446,27 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                             "reverb": min(100.0, max(0.0, reverb_send_raw / 10.0)),
                             "present": chorus_present or reverb_present,
                         },
+                        "exclusive_class": exclusive_class if exclusive_class is not None else 0,
                     }
                 )
 
         if preset_zones:
+            is_drum = int(preset.bank) == 128
+            if not is_drum:
+                drum_reason = _looks_like_drum(preset.name, preset_zones)
+                if drum_reason:
+                    is_drum = True
+                    parse_log["warnings"].append(
+                        {
+                            "preset": preset.name,
+                            "reason": "drum_heuristic",
+                            "detail": drum_reason,
+                        }
+                    )
             presets.append(
                 {
                     "name": preset.name,
-                    "is_drum": int(preset.bank) == 128,
+                    "is_drum": is_drum,
                     "zones": preset_zones,
                 }
             )

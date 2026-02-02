@@ -96,6 +96,12 @@ def _apply_fx(patch: Dict[str, object], fx: Dict[str, object] | None) -> None:
     patch["fx"]["active"] = params[6] > 0 or params[7] > 0
 
 
+def _apply_playmode(patch: Dict[str, object], playmode: str | None) -> None:
+    if not playmode:
+        return
+    patch["engine"]["playmode"] = playmode
+
+
 def ensure_preset_dir(path: os.PathLike[str] | str) -> Path:
     out_dir = Path(path)
     if out_dir.suffix != ".preset":
@@ -108,6 +114,7 @@ def write_multisample_preset(preset: Dict[str, object], out_dir: str) -> None:
     os.makedirs(out_dir_path, exist_ok=True)
     patch = json.loads(json.dumps(BASE_MULTISAMPLE))
     patch["name"] = preset["name"]
+    _apply_playmode(patch, preset.get("playmode"))
     _apply_envelope(patch, preset.get("envelope"))
     _apply_fx(patch, preset.get("fx"))
     patch["regions"] = []

@@ -43,6 +43,9 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 - `--resample-rate`: Target sample rate when resampling (default 22050).
 - `--bit-depth`: Target bit depth (default 16).
 - `--recursive`: Scan subdirectories when the source is a folder.
+- `--force-drum`: Force all presets to drum kits (ignores detection).
+- `--force-instrument`: Force all presets to multisample instruments (ignores detection).
+- `--instrument-playmode`: Playmode for multisample presets (`auto|poly|mono|legato`).
 
 ## Mapping Notes
 
@@ -54,6 +57,7 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
   - Delay/hold are folded into attack/decay.
 - **FX sends:** SF2 chorus maps to OP-XY `fx.params[6]` (delay send) and SF2 reverb maps to `fx.params[7]` (reverb send).
   For best results, set FX1 to a chorus on the OP-XY so the chorus send behaves as intended.
+- **Drum detection:** Drum kits are detected by bank 128 plus a name/keyrange heuristic (e.g. "Drum", "Kit", many single-note zones).
 
 ## NKI workflow
 
