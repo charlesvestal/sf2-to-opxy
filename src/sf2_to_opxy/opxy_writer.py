@@ -126,7 +126,7 @@ def write_multisample_preset(preset: Dict[str, object], out_dir: str) -> None:
         patch["regions"].append(
             {
                 "framecount": region["framecount"],
-                "gain": 0,
+                "gain": int(region.get("gain", 0)),
                 "hikey": region["hikey"],
                 "lokey": region["lokey"],
                 "loop.crossfade": 0,
@@ -139,7 +139,7 @@ def write_multisample_preset(preset: Dict[str, object], out_dir: str) -> None:
                 "sample": region["sample"],
                 "sample.end": region["framecount"],
                 "sample.start": 0,
-                "tune": 0,
+                "tune": int(region.get("tune", 0)),
             }
         )
     with open(os.path.join(out_dir_path, "patch.json"), "w", encoding="utf-8") as handle:
@@ -172,8 +172,8 @@ def write_drum_preset(preset: Dict[str, object], out_dir: str) -> None:
                 "reverse": False,
                 "sample": region["sample"],
                 "transpose": 0,
-                "tune": 0,
-                "gain": 0,
+                "tune": int(region.get("tune", 0)),
+                "gain": int(region.get("gain", 0)),
                 "sample.start": 0,
                 "sample.end": region["framecount"],
             }

@@ -296,18 +296,20 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                 fine += int(sample_pair["pitch_correction"])
 
                 root_key = root_override if root_override is not None else int(sample.original_pitch)
-                if fine % 100 != 0:
+                root_key += coarse
+                root_key = max(0, min(127, root_key))
+                tune_cents = int(fine)
+                if tune_cents < -1200 or tune_cents > 1200:
                     parse_log["warnings"].append(
                         {
                             "preset": preset.name,
                             "instrument": instrument.name,
                             "sample": getattr(sample, "name", None),
-                            "reason": "fine_tune_rounded",
-                            "fine_cents": fine,
+                            "reason": "fine_tune_clamped",
+                            "fine_cents": tune_cents,
                         }
                     )
-                root_key += coarse + int(round(fine / 100))
-                root_key = max(0, min(127, root_key))
+                    tune_cents = max(-1200, min(1200, tune_cents))
 
                 start_offset = _sum_offset(bags, Sf2Gen.OPER_START_ADDR_OFFSET, Sf2Gen.OPER_START_ADDR_COARSE_OFFSET)
                 end_offset = _sum_offset(bags, Sf2Gen.OPER_END_ADDR_OFFSET, Sf2Gen.OPER_END_ADDR_COARSE_OFFSET)
@@ -387,6 +389,7 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                 chorus_send_raw, chorus_present = _sum_word(bags, Sf2Gen.OPER_CHORUS_EFFECTS_SEND)
                 reverb_send_raw, reverb_present = _sum_word(bags, Sf2Gen.OPER_REVERB_EFFECTS_SEND)
                 exclusive_class = _first_word(bags, Sf2Gen.OPER_EXCLUSIVE_CLASS)
+                initial_atten_cb, initial_atten_present = _sum_short(bags, Sf2Gen.OPER_INITIAL_ATTENUATION)
 
                 preset_zones.append(
                     {
@@ -447,6 +450,8 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                             "present": chorus_present or reverb_present,
                         },
                         "exclusive_class": exclusive_class if exclusive_class is not None else 0,
+                        "tune_cents": tune_cents,
+                        "initial_atten_cb": initial_atten_cb if initial_atten_present else 0,
                     }
                 )
 

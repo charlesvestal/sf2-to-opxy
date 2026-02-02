@@ -359,6 +359,39 @@ def _resample_pcm(pcm: List[int], channels: int, src_rate: int, dst_rate: int) -
     return out
 
 
+def _attenuation_to_gain_db(centibels: int | float) -> int:
+    return int(round(-float(centibels) / 10.0))
+
+
+def _apply_original_key_ranges(
+    zones: List[Dict[str, object]],
+    key_min: int,
+    key_max: int,
+    preset_name: str,
+    log: Dict[str, object],
+) -> List[Dict[str, object]]:
+    for zone in zones:
+        key_range = zone.get("key_range", (key_min, key_max))
+        try:
+            low = int(key_range[0])
+            high = int(key_range[1])
+        except Exception:
+            low, high = key_min, key_max
+            log["warnings"].append(
+                {"preset": preset_name, "reason": "invalid_key_range", **_zone_descriptor(zone)}
+            )
+        low = max(key_min, min(low, key_max))
+        high = max(key_min, min(high, key_max))
+        if low > high:
+            low, high = high, low
+            log["warnings"].append(
+                {"preset": preset_name, "reason": "swapped_key_range", **_zone_descriptor(zone)}
+            )
+        zone["lokey"] = low
+        zone["hikey"] = high
+    return zones
+
+
 def convert_presets(
     presets: List[Dict[str, object]],
     out_root: str,
@@ -406,12 +439,16 @@ def convert_presets(
                     {"preset": preset_name, "reason": "root_key_clamped", "root_key": root_key}
                 )
                 zone["root_key"] = max(21, min(108, root_key))
-        selected = select_zones_for_88_keys(zones, 24, 21, 108)
-        selected_ids = {id(z) for z in selected}
-        for zone in zones:
-            if id(zone) not in selected_ids:
-                log["discarded"].append({"reason": "zone_downselect", **_zone_descriptor(zone)})
-        selected = assign_key_ranges(selected, 21, 108)
+        if len(zones) <= 24:
+            selected = list(zones)
+            selected = _apply_original_key_ranges(selected, 21, 108, preset_name, log)
+        else:
+            selected = select_zones_for_88_keys(zones, 24, 21, 108)
+            selected_ids = {id(z) for z in selected}
+            for zone in zones:
+                if id(zone) not in selected_ids:
+                    log["discarded"].append({"reason": "zone_downselect", **_zone_descriptor(zone)})
+            selected = assign_key_ranges(selected, 21, 108)
         amp_env = _derive_envelope(selected, "amp_env", preset_name, log)
         filter_env = _derive_envelope(selected, "mod_env", preset_name, log)
         fx_send = _derive_fx(selected, preset_name, log)
@@ -427,6 +464,8 @@ def convert_presets(
             pcm = sample["data"]
             channels = int(sample.get("channels", 1))
             source_rate = int(sample.get("rate", resample_rate))
+            tune = int(zone.get("tune_cents", 0))
+            gain = _attenuation_to_gain_db(zone.get("initial_atten_cb", 0))
             loop_start = int(zone.get("loop_start", 0))
             loop_end = int(zone.get("loop_end", 0))
             loop_enabled = bool(zone.get("loop_enabled", False))
@@ -488,6 +527,8 @@ def convert_presets(
                     "framecount": framecount,
                     "lokey": zone["lokey"],
                     "hikey": zone["hikey"],
+                    "tune": tune,
+                    "gain": gain,
                 }
             )
 
@@ -547,6 +588,7 @@ def convert_presets(
                 channels = int(sample.get("channels", 1))
                 source_rate = int(sample.get("rate", resample_rate))
                 playmode = "group" if int(zone.get("exclusive_class", 0)) > 0 else "oneshot"
+                gain = _attenuation_to_gain_db(zone.get("initial_atten_cb", 0))
 
                 if resample:
                     pcm = _resample_pcm(pcm, channels, source_rate, resample_rate)
@@ -570,6 +612,7 @@ def convert_presets(
                         "framecount": framecount,
                         "midi_note": 53 + slot,
                         "playmode": playmode,
+                        "gain": gain,
                     }
                 )
 

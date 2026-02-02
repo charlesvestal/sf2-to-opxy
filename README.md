@@ -52,11 +52,14 @@ python3 sf2_to_opxy.py /path/to/soundfonts --out /path/to/output --recursive
 ## Mapping Notes
 
 - **Zone downselect:** If an instrument has more than 24 zones, the converter evenly spreads the chosen zones across A0–C8.
+- **Key ranges:** If an instrument has 24 zones or fewer, original SF2 key ranges are preserved (clamped to A0–C8).
 - **Velocity layers:** By default we keep velocity 101. You can pass multiple velocities or split into separate presets.
 - **Envelopes:** SF2 timecents are converted to seconds and scaled into OP-XY 0–32767 envelope values.
   - Attack/decay use an exponential curve with ~360s max (fits 50% ≈ 2s, 75% ≈ 26s).
   - Release uses an inverted cubic curve with ~30s max.
   - Delay/hold are folded into attack/decay.
+- **Per-zone gain:** SF2 initial attenuation is mapped to region gain (in dB).
+- **Fine tune:** SF2 fine-tune (cents) and sample pitch correction are mapped to region tune.
 - **FX sends:** SF2 chorus maps to OP-XY `fx.params[6]` (delay send) and SF2 reverb maps to `fx.params[7]` (reverb send).
   For best results, set FX1 to a chorus on the OP-XY so the chorus send behaves as intended.
 - **Drum detection:** Drum kits are detected by bank 128 plus a name/keyrange heuristic (e.g. "Drum", "Kit", many single-note zones).
