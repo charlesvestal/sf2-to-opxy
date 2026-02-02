@@ -74,11 +74,33 @@ BASE_DRUM = {
     "version": 4,
 }
 
+def _apply_envelope(patch: Dict[str, object], envelope: Dict[str, object] | None) -> None:
+    if not envelope:
+        return
+    amp = envelope.get("amp")
+    filt = envelope.get("filter")
+    if amp:
+        patch["envelope"]["amp"] = amp
+    if filt:
+        patch["envelope"]["filter"] = filt
+
+
+def _apply_fx(patch: Dict[str, object], fx: Dict[str, object] | None) -> None:
+    if not fx:
+        return
+    params = list(patch["fx"]["params"])
+    params[6] = int(fx.get("delay_send", params[6]))
+    params[7] = int(fx.get("reverb_send", params[7]))
+    patch["fx"]["params"] = params
+    patch["fx"]["active"] = params[6] > 0 or params[7] > 0
+
 
 def write_multisample_preset(preset: Dict[str, object], out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
     patch = json.loads(json.dumps(BASE_MULTISAMPLE))
     patch["name"] = preset["name"]
+    _apply_envelope(patch, preset.get("envelope"))
+    _apply_fx(patch, preset.get("fx"))
     patch["regions"] = []
     for region in preset["regions"]:
         wav_path = os.path.join(out_dir, region["sample"])
@@ -112,6 +134,8 @@ def write_drum_preset(preset: Dict[str, object], out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
     patch = json.loads(json.dumps(BASE_DRUM))
     patch["name"] = preset["name"]
+    _apply_envelope(patch, preset.get("envelope"))
+    _apply_fx(patch, preset.get("fx"))
     patch["regions"] = []
     for region in preset["regions"]:
         wav_path = os.path.join(out_dir, region["sample"])

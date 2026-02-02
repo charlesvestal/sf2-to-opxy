@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import math
 import os
+from collections import Counter
 from typing import Dict, List, Tuple
 
 from sf2_to_opxy.audio import resample_linear
@@ -9,7 +11,114 @@ from sf2_to_opxy.selection import assign_key_ranges, select_zones_for_88_keys
 
 
 Range = Tuple[int, int]
+ENV_MAX_SECONDS = 360.0
 
+
+def timecents_to_seconds(timecents: float) -> float:
+    return 2 ** (timecents / 1200.0)
+
+
+def centibels_to_level(centibels: float) -> float:
+    if centibels < 0:
+        centibels = 0
+    return math.pow(10.0, -centibels / 200.0)
+
+
+def scale_envelope_seconds(seconds: float, max_seconds: float = ENV_MAX_SECONDS) -> int:
+    if seconds <= 0:
+        return 0
+    clipped = min(seconds, max_seconds)
+    percent = math.sqrt(clipped / max_seconds)
+    return int(round(percent * 32767))
+
+
+def map_fx_send(percent: float) -> int:
+    value = max(0.0, min(100.0, percent))
+    return int(round(value / 100.0 * 32767))
+
+
+def _env_to_opxy(env: Dict[str, object]) -> Dict[str, int]:
+    delay_tc = env.get("delay_tc")
+    attack_tc = env.get("attack_tc")
+    hold_tc = env.get("hold_tc")
+    decay_tc = env.get("decay_tc")
+    release_tc = env.get("release_tc")
+    sustain_cb = env.get("sustain_cb")
+
+    delay_sec = timecents_to_seconds(delay_tc) if delay_tc is not None else 0.0
+    attack_sec = timecents_to_seconds(attack_tc) if attack_tc is not None else 0.0
+    hold_sec = timecents_to_seconds(hold_tc) if hold_tc is not None else 0.0
+    decay_sec = timecents_to_seconds(decay_tc) if decay_tc is not None else 0.0
+    release_sec = timecents_to_seconds(release_tc) if release_tc is not None else 0.0
+
+    if sustain_cb is None:
+        sustain_level = 1.0
+    else:
+        sustain_level = centibels_to_level(float(sustain_cb))
+    sustain_level = max(0.0, min(1.0, sustain_level))
+
+    attack_total = delay_sec + attack_sec
+    decay_total = hold_sec + decay_sec
+
+    return {
+        "attack": scale_envelope_seconds(attack_total),
+        "decay": scale_envelope_seconds(decay_total),
+        "sustain": int(round(sustain_level * 32767)),
+        "release": scale_envelope_seconds(release_sec),
+    }
+
+
+def _choose_mode(values: List[Tuple[int, int, int, int]]) -> Tuple[Tuple[int, int, int, int], int]:
+    counts = Counter(values)
+    choice, count = counts.most_common(1)[0]
+    return choice, len(counts)
+
+
+def _derive_envelope(zones: List[Dict[str, object]], key: str, preset_name: str, log: Dict[str, object]) -> Dict[str, int] | None:
+    tuples: List[Tuple[int, int, int, int]] = []
+    missing = 0
+    for zone in zones:
+        env = zone.get(key)
+        if not env or not env.get("present"):
+            missing += 1
+            continue
+        opxy_env = _env_to_opxy(env)
+        tuples.append((opxy_env["attack"], opxy_env["decay"], opxy_env["sustain"], opxy_env["release"]))
+    if not tuples:
+        return None
+    chosen, variants = _choose_mode(tuples)
+    if variants > 1:
+        log["warnings"].append(
+            {"preset": preset_name, "reason": "mixed_envelope", "env": key, "variants": variants}
+        )
+    if missing > 0:
+        log["warnings"].append(
+            {"preset": preset_name, "reason": "missing_envelope_zones", "env": key, "missing": missing}
+        )
+    return {"attack": chosen[0], "decay": chosen[1], "sustain": chosen[2], "release": chosen[3]}
+
+
+def _derive_fx(zones: List[Dict[str, object]], preset_name: str, log: Dict[str, object]) -> Dict[str, int] | None:
+    tuples: List[Tuple[float, float]] = []
+    for zone in zones:
+        fx = zone.get("fx_send") or {}
+        chorus = float(fx.get("chorus", 0.0))
+        reverb = float(fx.get("reverb", 0.0))
+        tuples.append((chorus, reverb))
+    if not tuples:
+        return None
+    counts = Counter(tuples)
+    (chorus, reverb), variants = counts.most_common(1)[0]
+    if variants > 1:
+        log["warnings"].append(
+            {"preset": preset_name, "reason": "mixed_fx_send", "variants": variants}
+        )
+    return {
+        "delay_send": map_fx_send(chorus),
+        "reverb_send": map_fx_send(reverb),
+        "chorus_percent": chorus,
+        "reverb_percent": reverb,
+    }
 
 def _sanitize_name(value: str) -> str:
     keep = []
@@ -91,6 +200,9 @@ def convert_presets(
             if id(zone) not in selected_ids:
                 log["discarded"].append({"reason": "zone_downselect", **_zone_descriptor(zone)})
         selected = assign_key_ranges(selected, 21, 108)
+        amp_env = _derive_envelope(selected, "amp_env", preset_name, log)
+        filter_env = _derive_envelope(selected, "mod_env", preset_name, log)
+        fx_send = _derive_fx(selected, preset_name, log)
 
         seen_names: Dict[str, int] = {}
         regions = []
@@ -153,14 +265,33 @@ def convert_presets(
 
         if not dry_run:
             preset_dir = os.path.join(out_root, _sanitize_name(preset_name))
-            write_multisample_preset({"name": preset_name, "regions": regions}, preset_dir)
-        log["presets"].append({"name": preset_name, "zones": len(zones), "kept": len(selected)})
+            write_multisample_preset(
+                {
+                    "name": preset_name,
+                    "regions": regions,
+                    "envelope": {"amp": amp_env, "filter": filter_env},
+                    "fx": fx_send,
+                },
+                preset_dir,
+            )
+        log["presets"].append(
+            {
+                "name": preset_name,
+                "zones": len(zones),
+                "kept": len(selected),
+                "fx": fx_send,
+                "envelope": {"amp": amp_env, "filter": filter_env},
+            }
+        )
 
     def _write_drum_preset(preset_name: str, zones: List[Dict[str, object]]) -> None:
         if not zones:
             log["warnings"].append({"preset": preset_name, "reason": "no_zones"})
             return
         zones_sorted = sorted(zones, key=lambda z: int(z.get("root_key", 0)))
+        amp_env = _derive_envelope(zones_sorted, "amp_env", preset_name, log)
+        filter_env = _derive_envelope(zones_sorted, "mod_env", preset_name, log)
+        fx_send = _derive_fx(zones_sorted, preset_name, log)
         chunks = [zones_sorted[i:i + 24] for i in range(0, len(zones_sorted), 24)]
         for chunk_index, chunk in enumerate(chunks):
             name = preset_name
@@ -201,8 +332,24 @@ def convert_presets(
 
             if not dry_run:
                 preset_dir = os.path.join(out_root, _sanitize_name(name))
-                write_drum_preset({"name": name, "regions": regions}, preset_dir)
-            log["presets"].append({"name": name, "zones": len(zones), "kept": len(chunk)})
+                write_drum_preset(
+                    {
+                        "name": name,
+                        "regions": regions,
+                        "envelope": {"amp": amp_env, "filter": filter_env},
+                        "fx": fx_send,
+                    },
+                    preset_dir,
+                )
+            log["presets"].append(
+                {
+                    "name": name,
+                    "zones": len(zones),
+                    "kept": len(chunk),
+                    "fx": fx_send,
+                    "envelope": {"amp": amp_env, "filter": filter_env},
+                }
+            )
 
     for preset in presets:
         preset_name = preset.get("name", "Preset")

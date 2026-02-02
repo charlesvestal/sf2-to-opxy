@@ -130,13 +130,32 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
         lo, hi = gen.amount_as_sorted_range
         return int(lo), int(hi)
 
-    def _sum_short(bags, oper: int) -> int:
+    def _sum_short(bags, oper: int) -> Tuple[int, bool]:
         total = 0
+        present = False
         for bag in bags:
             gen = bag.gens.get(oper)
             if gen is not None:
                 total += int(gen.short)
-        return total
+                present = True
+        return total, present
+
+    def _sum_word(bags, oper: int) -> Tuple[int, bool]:
+        total = 0
+        present = False
+        for bag in bags:
+            gen = bag.gens.get(oper)
+            if gen is not None:
+                total += int(gen.word)
+                present = True
+        return total, present
+
+    def _first_word(bags, oper: int) -> Optional[int]:
+        for bag in bags:
+            gen = bag.gens.get(oper)
+            if gen is not None:
+                return int(gen.word)
+        return None
 
     def _sum_offset(bags, oper: int, coarse_oper: int) -> int:
         total = 0
@@ -235,8 +254,9 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                         root_override = int(gen.word)
                         break
 
-                coarse = _sum_short(bags, Sf2Gen.OPER_COARSE_TUNE)
-                fine = _sum_short(bags, Sf2Gen.OPER_FINE_TUNE) + int(sample_pair["pitch_correction"])
+                coarse, _ = _sum_short(bags, Sf2Gen.OPER_COARSE_TUNE)
+                fine, _ = _sum_short(bags, Sf2Gen.OPER_FINE_TUNE)
+                fine += int(sample_pair["pitch_correction"])
 
                 root_key = root_override if root_override is not None else int(sample.original_pitch)
                 if fine % 100 != 0:
@@ -298,11 +318,37 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                     )
                     continue
 
+                sample_mode = _first_word(
+                    [inst_bag, instrument_global, bag, preset_global],
+                    Sf2Gen.OPER_SAMPLE_MODES,
+                )
+                if sample_mode is None:
+                    sample_mode = 0
                 loop_enabled = False
-                if loop_start < loop_end:
+                loop_on_release = False
+                if loop_start < loop_end and sample_mode != 0:
                     loop_start = max(0, min(loop_start, frame_count - 1))
                     loop_end = max(loop_start + 1, min(loop_end, frame_count))
                     loop_enabled = True
+                    if sample_mode & 0x2:
+                        loop_on_release = True
+
+                delay_vol_tc, delay_vol_present = _sum_short(bags, Sf2Gen.OPER_DELAY_VOL_ENV)
+                attack_vol_tc, attack_vol_present = _sum_short(bags, Sf2Gen.OPER_ATTACK_VOL_ENV)
+                hold_vol_tc, hold_vol_present = _sum_short(bags, Sf2Gen.OPER_HOLD_VOL_ENV)
+                decay_vol_tc, decay_vol_present = _sum_short(bags, Sf2Gen.OPER_DECAY_VOL_ENV)
+                sustain_vol_cb, sustain_vol_present = _sum_word(bags, Sf2Gen.OPER_SUSTAIN_VOL_ENV)
+                release_vol_tc, release_vol_present = _sum_short(bags, Sf2Gen.OPER_RELEASE_VOL_ENV)
+
+                delay_mod_tc, delay_mod_present = _sum_short(bags, Sf2Gen.OPER_DELAY_MOD_ENV)
+                attack_mod_tc, attack_mod_present = _sum_short(bags, Sf2Gen.OPER_ATTACK_MOD_ENV)
+                hold_mod_tc, hold_mod_present = _sum_short(bags, Sf2Gen.OPER_HOLD_MOD_ENV)
+                decay_mod_tc, decay_mod_present = _sum_short(bags, Sf2Gen.OPER_DECAY_MOD_ENV)
+                sustain_mod_cb, sustain_mod_present = _sum_word(bags, Sf2Gen.OPER_SUSTAIN_MOD_ENV)
+                release_mod_tc, release_mod_present = _sum_short(bags, Sf2Gen.OPER_RELEASE_MOD_ENV)
+
+                chorus_send_raw, chorus_present = _sum_word(bags, Sf2Gen.OPER_CHORUS_EFFECTS_SEND)
+                reverb_send_raw, reverb_present = _sum_word(bags, Sf2Gen.OPER_REVERB_EFFECTS_SEND)
 
                 preset_zones.append(
                     {
@@ -320,6 +366,48 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                         "loop_start": loop_start,
                         "loop_end": loop_end,
                         "loop_enabled": loop_enabled,
+                        "loop_on_release": loop_on_release,
+                        "amp_env": {
+                            "delay_tc": delay_vol_tc if delay_vol_present else None,
+                            "attack_tc": attack_vol_tc if attack_vol_present else None,
+                            "hold_tc": hold_vol_tc if hold_vol_present else None,
+                            "decay_tc": decay_vol_tc if decay_vol_present else None,
+                            "sustain_cb": float(sustain_vol_cb) if sustain_vol_present else None,
+                            "release_tc": release_vol_tc if release_vol_present else None,
+                            "present": any(
+                                (
+                                    delay_vol_present,
+                                    attack_vol_present,
+                                    hold_vol_present,
+                                    decay_vol_present,
+                                    sustain_vol_present,
+                                    release_vol_present,
+                                )
+                            ),
+                        },
+                        "mod_env": {
+                            "delay_tc": delay_mod_tc if delay_mod_present else None,
+                            "attack_tc": attack_mod_tc if attack_mod_present else None,
+                            "hold_tc": hold_mod_tc if hold_mod_present else None,
+                            "decay_tc": decay_mod_tc if decay_mod_present else None,
+                            "sustain_cb": float(sustain_mod_cb) if sustain_mod_present else None,
+                            "release_tc": release_mod_tc if release_mod_present else None,
+                            "present": any(
+                                (
+                                    delay_mod_present,
+                                    attack_mod_present,
+                                    hold_mod_present,
+                                    decay_mod_present,
+                                    sustain_mod_present,
+                                    release_mod_present,
+                                )
+                            ),
+                        },
+                        "fx_send": {
+                            "chorus": min(100.0, max(0.0, chorus_send_raw / 10.0)),
+                            "reverb": min(100.0, max(0.0, reverb_send_raw / 10.0)),
+                            "present": chorus_present or reverb_present,
+                        },
                     }
                 )
 
