@@ -124,6 +124,8 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
         return sample_cache[cache_key]
 
     def _get_range(bag, oper: int) -> Optional[Range]:
+        if bag is None:
+            return None
         gen = bag.gens.get(oper)
         if gen is None:
             return None
@@ -152,6 +154,8 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
 
     def _first_word(bags, oper: int) -> Optional[int]:
         for bag in bags:
+            if bag is None:
+                continue
             gen = bag.gens.get(oper)
             if gen is not None:
                 return int(gen.word)
