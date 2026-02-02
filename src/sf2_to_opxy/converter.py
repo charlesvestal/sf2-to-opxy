@@ -11,7 +11,9 @@ from sf2_to_opxy.selection import assign_key_ranges, select_zones_for_88_keys
 
 
 Range = Tuple[int, int]
-ATTACK_MAX_SECONDS = 10.0
+ATTACK_MIN_SECONDS = 0.0111
+ATTACK_CURVE_B = 10.386
+ATTACK_MAX_SECONDS = 360.0
 RELEASE_MAX_SECONDS = 30.0
 
 
@@ -29,8 +31,11 @@ def scale_attack_seconds(seconds: float, max_seconds: float = ATTACK_MAX_SECONDS
     if seconds <= 0:
         return 0
     clipped = min(seconds, max_seconds)
-    percent = math.sqrt(clipped / max_seconds)
-    return int(round(percent * 32767))
+    if clipped <= ATTACK_MIN_SECONDS:
+        return 0
+    x = math.log(clipped / ATTACK_MIN_SECONDS) / ATTACK_CURVE_B
+    x = max(0.0, min(1.0, x))
+    return int(round(x * 32767))
 
 
 def scale_release_seconds(seconds: float, max_seconds: float = RELEASE_MAX_SECONDS) -> int:

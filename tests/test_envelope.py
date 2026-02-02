@@ -13,8 +13,8 @@ def test_timecents_to_seconds():
 
 def test_scale_attack_seconds():
     assert scale_attack_seconds(0.0) == 0
-    assert scale_attack_seconds(10.0) == 32767
-    assert 14000 <= scale_attack_seconds(2.0) <= 18000
+    assert 16000 <= scale_attack_seconds(2.0) <= 17000
+    assert scale_attack_seconds(360.0) == 32767
 
 
 def test_scale_release_seconds():
