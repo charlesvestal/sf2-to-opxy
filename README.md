@@ -41,7 +41,10 @@ python3 sf2_to_opxy.py /path/to/soundfont.sf2 --out /path/to/output \\
 
 - **Zone downselect:** If an instrument has more than 24 zones, the converter evenly spreads the chosen zones across A0–C8.
 - **Velocity layers:** By default we keep velocity 101. You can pass multiple velocities or split into separate presets.
-- **Envelopes:** SF2 timecents are converted to seconds and scaled into OP-XY 0–32767 envelope values. Delay/hold are folded into attack/decay.
+- **Envelopes:** SF2 timecents are converted to seconds and scaled into OP-XY 0–32767 envelope values.
+  - Attack/decay use a non-inverted quadratic curve with ~10s max.
+  - Release uses an inverted cubic curve with ~30s max.
+  - Delay/hold are folded into attack/decay.
 - **FX sends:** SF2 chorus maps to OP-XY `fx.params[6]` (delay send) and SF2 reverb maps to `fx.params[7]` (reverb send).
   For best results, set FX1 to a chorus on the OP-XY so the chorus send behaves as intended.
 

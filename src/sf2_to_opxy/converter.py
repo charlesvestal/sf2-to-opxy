@@ -11,7 +11,8 @@ from sf2_to_opxy.selection import assign_key_ranges, select_zones_for_88_keys
 
 
 Range = Tuple[int, int]
-ENV_MAX_SECONDS = 30.0
+ATTACK_MAX_SECONDS = 10.0
+RELEASE_MAX_SECONDS = 30.0
 
 
 def timecents_to_seconds(timecents: float) -> float:
@@ -24,7 +25,15 @@ def centibels_to_level(centibels: float) -> float:
     return math.pow(10.0, -centibels / 200.0)
 
 
-def scale_envelope_seconds(seconds: float, max_seconds: float = ENV_MAX_SECONDS) -> int:
+def scale_attack_seconds(seconds: float, max_seconds: float = ATTACK_MAX_SECONDS) -> int:
+    if seconds <= 0:
+        return 0
+    clipped = min(seconds, max_seconds)
+    percent = math.sqrt(clipped / max_seconds)
+    return int(round(percent * 32767))
+
+
+def scale_release_seconds(seconds: float, max_seconds: float = RELEASE_MAX_SECONDS) -> int:
     if seconds <= 0:
         return 32767
     clipped = min(seconds, max_seconds)
@@ -62,10 +71,10 @@ def _env_to_opxy(env: Dict[str, object]) -> Dict[str, int]:
     decay_total = hold_sec + decay_sec
 
     return {
-        "attack": scale_envelope_seconds(attack_total),
-        "decay": scale_envelope_seconds(decay_total),
+        "attack": scale_attack_seconds(attack_total),
+        "decay": scale_attack_seconds(decay_total),
         "sustain": int(round(sustain_level * 32767)),
-        "release": scale_envelope_seconds(release_sec),
+        "release": scale_release_seconds(release_sec),
     }
 
 
