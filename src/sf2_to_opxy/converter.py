@@ -11,7 +11,7 @@ from sf2_to_opxy.selection import assign_key_ranges, select_zones_for_88_keys
 
 
 Range = Tuple[int, int]
-ENV_MAX_SECONDS = 360.0
+ENV_MAX_SECONDS = 30.0
 
 
 def timecents_to_seconds(timecents: float) -> float:
@@ -26,10 +26,11 @@ def centibels_to_level(centibels: float) -> float:
 
 def scale_envelope_seconds(seconds: float, max_seconds: float = ENV_MAX_SECONDS) -> int:
     if seconds <= 0:
-        return 0
+        return 32767
     clipped = min(seconds, max_seconds)
-    percent = math.sqrt(clipped / max_seconds)
-    return int(round(percent * 32767))
+    ratio = clipped / max_seconds
+    inverted = 1.0 - ratio ** (1.0 / 3.0)
+    return int(round(inverted * 32767))
 
 
 def map_fx_send(percent: float) -> int:

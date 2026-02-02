@@ -7,8 +7,9 @@ def test_timecents_to_seconds():
 
 
 def test_scale_envelope_seconds():
-    assert scale_envelope_seconds(0.0) == 0
-    assert scale_envelope_seconds(360.0) == 32767
+    assert scale_envelope_seconds(0.0) == 32767
+    assert scale_envelope_seconds(30.0) == 0
+    assert 15500 <= scale_envelope_seconds(4.0) <= 18000
 
 
 def test_fx_send_mapping():
