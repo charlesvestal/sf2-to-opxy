@@ -35,6 +35,9 @@ For local dev:
 npm --prefix web run dev
 ```
 
+GitHub Pages deployment is automated via `.github/workflows/pages.yml` and uses
+`BASE_URL=/<repo>/` for the Vite base path.
+
 ## Usage
 
 ```bash
