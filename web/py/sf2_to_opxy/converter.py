@@ -462,6 +462,7 @@ def convert_presets(
     zero_crossing_max_distance: int = ZERO_CROSS_MAX_DISTANCE,
     zero_crossing_threshold: int = ZERO_CROSS_THRESHOLD,
     loop_end_offset: int = 0,
+    loop_on_release: str = "auto",
     progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> Dict[str, object]:
     log: Dict[str, object] = {"discarded": [], "presets": [], "warnings": []}
@@ -525,7 +526,12 @@ def convert_presets(
             loop_start = int(zone.get("loop_start", 0))
             loop_end = int(zone.get("loop_end", 0))
             loop_enabled = bool(zone.get("loop_enabled", False))
-            loop_on_release = bool(zone.get("loop_on_release", False))
+            if loop_on_release == "on":
+                zone_loop_on_release = True
+            elif loop_on_release == "off":
+                zone_loop_on_release = False
+            else:
+                zone_loop_on_release = bool(zone.get("loop_on_release", False))
 
             if resample:
                 pcm = _resample_pcm(pcm, channels, source_rate, resample_rate)
@@ -587,7 +593,7 @@ def convert_presets(
                     "loop_start": loop_start,
                     "loop_end": loop_end,
                     "loop_enabled": loop_enabled,
-                    "loop_on_release": loop_on_release,
+                    "loop_on_release": zone_loop_on_release,
                     "framecount": framecount,
                     "lokey": zone["lokey"],
                     "hikey": zone["hikey"],

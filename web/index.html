@@ -215,7 +215,7 @@ footer a { color: var(--accent); text-decoration: none; }
     <h2>2. Options</h2>
     <div class="options-grid">
       <div class="option-group checkbox-label" style="padding-top:0">
-        <label><input type="checkbox" id="optResample" checked> Resample audio</label>
+        <label><input type="checkbox" id="optResample"> Resample audio</label>
       </div>
       <div class="option-group" id="groupBitDepth">
         <label for="optBitDepth">Bit Depth</label>
@@ -262,6 +262,14 @@ footer a { color: var(--accent); text-decoration: none; }
       </div>
       <div class="option-group checkbox-label">
         <label><input type="checkbox" id="optZeroCrossing"> Zero-crossing snapping</label>
+      </div>
+      <div class="option-group">
+        <label for="optLoopOnRelease">Loop On Release</label>
+        <select id="optLoopOnRelease">
+          <option value="auto" selected>Auto (from SF2)</option>
+          <option value="on">Force On</option>
+          <option value="off">Force Off</option>
+        </select>
       </div>
     </div>
   </div>
@@ -636,6 +644,7 @@ self.onmessage = async function(e) {
       drum_velocity_mode: "closest",
       zero_crossing: document.getElementById("optZeroCrossing").checked,
       loop_end_offset: parseInt(document.getElementById("optLoopEndOffset").value, 10),
+      loop_on_release: document.getElementById("optLoopOnRelease").value,
     };
   }
 

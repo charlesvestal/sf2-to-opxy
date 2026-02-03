@@ -86,6 +86,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="closest",
         help="How to select drum zones for a target velocity",
     )
+    parser.add_argument(
+        "--loop-on-release",
+        choices=["auto", "on", "off"],
+        default="auto",
+        help="Loop on release behaviour: auto (use SF2 value), on (force enable), off (force disable)",
+    )
     return parser
 
 
@@ -132,6 +138,7 @@ def run(args: argparse.Namespace) -> int:
                 drum_velocity_mode=args.drum_velocity_mode,
                 zero_crossing=args.zero_crossing,
                 loop_end_offset=args.loop_end_offset,
+                loop_on_release=args.loop_on_release,
             )
             log["parse_warnings"] = parse_log
             log["source"] = sf2_path

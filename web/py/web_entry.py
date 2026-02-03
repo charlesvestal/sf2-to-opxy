@@ -35,6 +35,7 @@ def run_conversion(sf2_path, out_dir, options_json, progress_callback=None):
     drum_velocity_mode = options.get("drum_velocity_mode", "closest")
     zero_crossing = options.get("zero_crossing", False)
     loop_end_offset = options.get("loop_end_offset", 0)
+    loop_on_release = options.get("loop_on_release", "auto")
 
     os.makedirs(out_dir, exist_ok=True)
 
@@ -54,6 +55,7 @@ def run_conversion(sf2_path, out_dir, options_json, progress_callback=None):
         drum_velocity_mode=drum_velocity_mode,
         zero_crossing=zero_crossing,
         loop_end_offset=loop_end_offset,
+        loop_on_release=loop_on_release,
         progress_callback=progress_callback,
     )
     log["parse_warnings"] = parse_log
