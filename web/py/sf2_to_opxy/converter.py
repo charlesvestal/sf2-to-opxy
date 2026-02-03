@@ -19,8 +19,6 @@ RELEASE_MAX_SECONDS = 16.325
 RELEASE_CURVE_P = 0.9572
 ZERO_CROSS_THRESHOLD = 1
 ZERO_CROSS_MAX_DISTANCE = 1000
-PAD_FRAMES = 4  # Enough for 4th-order interpolation (matches FluidSynth)
-
 
 def apply_loop_end_offset(loop_start: int, loop_end: int, framecount: int, offset: int) -> int:
     adjusted = loop_end + offset
@@ -404,47 +402,6 @@ def _apply_original_key_ranges(
     return zones
 
 
-def _pad_loop_for_interpolation(
-    pcm: List[int], channels: int, loop_start: int, loop_end: int, pad_frames: int = PAD_FRAMES
-) -> Tuple[List[int], int]:
-    """Replace samples around loop boundaries with wrapped copies.
-
-    Hardware samplers (like OP-XY) may not wrap interpolation at loop
-    boundaries the way FluidSynth does. By placing loop-start data after
-    loop_end (and loop-end data before loop_start), any interpolation
-    algorithm will produce click-free results.
-
-    Returns (pcm, framecount) -- pcm may be extended if needed.
-    """
-    framecount = len(pcm) // channels
-    loop_len = loop_end - loop_start
-    if loop_len <= pad_frames * 2:
-        return pcm, framecount
-
-    # Pad AFTER loop_end: copy from loop_start
-    available_after = framecount - loop_end
-    if available_after < pad_frames:
-        extra = (pad_frames - available_after) * channels
-        pcm = list(pcm)  # ensure mutable copy
-        pcm.extend([0] * extra)
-        framecount = len(pcm) // channels
-
-    for i in range(pad_frames):
-        src = loop_start + i
-        dst = loop_end + i
-        for ch in range(channels):
-            pcm[dst * channels + ch] = pcm[src * channels + ch]
-
-    # Pad BEFORE loop_start: copy from loop_end region
-    for i in range(min(pad_frames, loop_start)):
-        src = loop_end - pad_frames + i
-        dst = loop_start - pad_frames + i
-        if dst >= 0 and src >= loop_start:
-            for ch in range(channels):
-                pcm[dst * channels + ch] = pcm[src * channels + ch]
-
-    return pcm, framecount
-
 
 def convert_presets(
     presets: List[Dict[str, object]],
@@ -569,11 +526,6 @@ def convert_presets(
             else:
                 loop_start = 0
                 loop_end = 0
-
-            if loop_enabled:
-                pcm, framecount = _pad_loop_for_interpolation(
-                    pcm, channels, loop_start, loop_end
-                )
 
             base_name = _sanitize_name(str(sample.get("name", f"sample_{idx}")))
             base_name = f"{base_name}_{zone['root_key']}"
