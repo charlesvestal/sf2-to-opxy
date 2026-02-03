@@ -140,45 +140,94 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
         lo, hi = gen.amount_as_sorted_range
         return int(lo), int(hi)
 
-    def _sum_short(bags, oper: int) -> Tuple[int, bool]:
-        total = 0
-        present = False
-        for bag in bags:
-            gen = bag.gens.get(oper)
+    def _resolve_short(inst_bag, instrument_global, bag, preset_global, oper: int) -> Tuple[int, bool]:
+        """Resolve a signed generator per SF2 spec: inst zone overrides inst global, preset adds offset."""
+        # Instrument level: zone overrides global
+        inst_val = 0
+        inst_present = False
+        gen = inst_bag.gens.get(oper) if inst_bag else None
+        if gen is not None:
+            inst_val = int(gen.short)
+            inst_present = True
+        elif instrument_global is not None:
+            gen = instrument_global.gens.get(oper)
             if gen is not None:
-                total += int(gen.short)
-                present = True
-        return total, present
-
-    def _sum_word(bags, oper: int) -> Tuple[int, bool]:
-        total = 0
-        present = False
-        for bag in bags:
-            gen = bag.gens.get(oper)
+                inst_val = int(gen.short)
+                inst_present = True
+        # Preset level: zone overrides global, value is additive offset
+        preset_offset = 0
+        preset_present = False
+        gen = bag.gens.get(oper) if bag else None
+        if gen is not None:
+            preset_offset = int(gen.short)
+            preset_present = True
+        elif preset_global is not None:
+            gen = preset_global.gens.get(oper)
             if gen is not None:
-                total += int(gen.word)
-                present = True
-        return total, present
+                preset_offset = int(gen.short)
+                preset_present = True
+        return inst_val + preset_offset, inst_present or preset_present
 
-    def _first_word(bags, oper: int) -> Optional[int]:
-        for bag in bags:
-            if bag is None:
-                continue
-            gen = bag.gens.get(oper)
+    def _resolve_word(inst_bag, instrument_global, bag, preset_global, oper: int) -> Tuple[int, bool]:
+        """Resolve an unsigned generator per SF2 spec: inst zone overrides inst global, preset adds offset."""
+        inst_val = 0
+        inst_present = False
+        gen = inst_bag.gens.get(oper) if inst_bag else None
+        if gen is not None:
+            inst_val = int(gen.word)
+            inst_present = True
+        elif instrument_global is not None:
+            gen = instrument_global.gens.get(oper)
+            if gen is not None:
+                inst_val = int(gen.word)
+                inst_present = True
+        preset_offset = 0
+        preset_present = False
+        gen = bag.gens.get(oper) if bag else None
+        if gen is not None:
+            preset_offset = int(gen.word)
+            preset_present = True
+        elif preset_global is not None:
+            gen = preset_global.gens.get(oper)
+            if gen is not None:
+                preset_offset = int(gen.word)
+                preset_present = True
+        return inst_val + preset_offset, inst_present or preset_present
+
+    def _inst_only_word(inst_bag, instrument_global, oper: int) -> Optional[int]:
+        """Resolve an instrument-level-only generator (zone overrides global)."""
+        if inst_bag is not None:
+            gen = inst_bag.gens.get(oper)
+            if gen is not None:
+                return int(gen.word)
+        if instrument_global is not None:
+            gen = instrument_global.gens.get(oper)
             if gen is not None:
                 return int(gen.word)
         return None
 
-    def _sum_offset(bags, oper: int, coarse_oper: int) -> int:
-        total = 0
-        for bag in bags:
-            gen = bag.gens.get(oper)
+    def _resolve_offset(inst_bag, instrument_global, bag, preset_global, oper: int, coarse_oper: int) -> int:
+        """Resolve an address offset generator pair per SF2 spec."""
+        def _level_offset(zone_bag, global_bag, op, cop):
+            val = 0
+            gen = zone_bag.gens.get(op) if zone_bag else None
             if gen is not None:
-                total += int(gen.short)
-            coarse = bag.gens.get(coarse_oper)
-            if coarse is not None:
-                total += int(coarse.short) * 32768
-        return total
+                val += int(gen.short)
+            elif global_bag is not None:
+                gen = global_bag.gens.get(op)
+                if gen is not None:
+                    val += int(gen.short)
+            gen = zone_bag.gens.get(cop) if zone_bag else None
+            if gen is not None:
+                val += int(gen.short) * 32768
+            elif global_bag is not None:
+                gen = global_bag.gens.get(cop)
+                if gen is not None:
+                    val += int(gen.short) * 32768
+            return val
+        inst_offset = _level_offset(inst_bag, instrument_global, oper, coarse_oper)
+        preset_offset = _level_offset(bag, preset_global, oper, coarse_oper)
+        return inst_offset + preset_offset
 
     def _intersect_ranges(a: Optional[Range], b: Optional[Range]) -> Optional[Range]:
         if a is None and b is None:
@@ -251,8 +300,6 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                     )
                     continue
 
-                bags = [b for b in (preset_global, bag, instrument_global, inst_bag) if b is not None]
-
                 preset_key = _get_range(bag, Sf2Gen.OPER_KEY_RANGE) or _get_range(
                     preset_global, Sf2Gen.OPER_KEY_RANGE
                 )
@@ -282,17 +329,10 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                     )
                     continue
 
-                root_override = None
-                for candidate in (inst_bag, instrument_global, bag, preset_global):
-                    if candidate is None:
-                        continue
-                    gen = candidate.gens.get(Sf2Gen.OPER_OVERRIDING_ROOT_KEY)
-                    if gen is not None:
-                        root_override = int(gen.word)
-                        break
+                root_override = _inst_only_word(inst_bag, instrument_global, Sf2Gen.OPER_OVERRIDING_ROOT_KEY)
 
-                coarse, _ = _sum_short(bags, Sf2Gen.OPER_COARSE_TUNE)
-                fine, _ = _sum_short(bags, Sf2Gen.OPER_FINE_TUNE)
+                coarse, _ = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_COARSE_TUNE)
+                fine, _ = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_FINE_TUNE)
                 fine += int(sample_pair["pitch_correction"])
 
                 root_key = root_override if root_override is not None else int(sample.original_pitch)
@@ -311,13 +351,13 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                     )
                     tune_cents = max(-1200, min(1200, tune_cents))
 
-                start_offset = _sum_offset(bags, Sf2Gen.OPER_START_ADDR_OFFSET, Sf2Gen.OPER_START_ADDR_COARSE_OFFSET)
-                end_offset = _sum_offset(bags, Sf2Gen.OPER_END_ADDR_OFFSET, Sf2Gen.OPER_END_ADDR_COARSE_OFFSET)
-                loop_start_offset = _sum_offset(
-                    bags, Sf2Gen.OPER_START_LOOP_ADDR_OFFSET, Sf2Gen.OPER_START_LOOP_ADDR_COARSE_OFFSET
+                start_offset = _resolve_offset(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_START_ADDR_OFFSET, Sf2Gen.OPER_START_ADDR_COARSE_OFFSET)
+                end_offset = _resolve_offset(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_END_ADDR_OFFSET, Sf2Gen.OPER_END_ADDR_COARSE_OFFSET)
+                loop_start_offset = _resolve_offset(
+                    inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_START_LOOP_ADDR_OFFSET, Sf2Gen.OPER_START_LOOP_ADDR_COARSE_OFFSET
                 )
-                loop_end_offset = _sum_offset(
-                    bags, Sf2Gen.OPER_END_LOOP_ADDR_OFFSET, Sf2Gen.OPER_END_LOOP_ADDR_COARSE_OFFSET
+                loop_end_offset = _resolve_offset(
+                    inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_END_LOOP_ADDR_OFFSET, Sf2Gen.OPER_END_LOOP_ADDR_COARSE_OFFSET
                 )
 
                 pcm = sample_pair["pcm"]
@@ -357,10 +397,7 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                     )
                     continue
 
-                sample_mode = _first_word(
-                    [inst_bag, instrument_global, bag, preset_global],
-                    Sf2Gen.OPER_SAMPLE_MODES,
-                )
+                sample_mode = _inst_only_word(inst_bag, instrument_global, Sf2Gen.OPER_SAMPLE_MODES)
                 if sample_mode is None:
                     sample_mode = 0
                 loop_enabled = False
@@ -372,24 +409,36 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
                     if sample_mode & 0x2:
                         loop_on_release = True
 
-                delay_vol_tc, delay_vol_present = _sum_short(bags, Sf2Gen.OPER_DELAY_VOL_ENV)
-                attack_vol_tc, attack_vol_present = _sum_short(bags, Sf2Gen.OPER_ATTACK_VOL_ENV)
-                hold_vol_tc, hold_vol_present = _sum_short(bags, Sf2Gen.OPER_HOLD_VOL_ENV)
-                decay_vol_tc, decay_vol_present = _sum_short(bags, Sf2Gen.OPER_DECAY_VOL_ENV)
-                sustain_vol_cb, sustain_vol_present = _sum_word(bags, Sf2Gen.OPER_SUSTAIN_VOL_ENV)
-                release_vol_tc, release_vol_present = _sum_short(bags, Sf2Gen.OPER_RELEASE_VOL_ENV)
+                scale_tuning = _inst_only_word(inst_bag, instrument_global, Sf2Gen.OPER_SCALE_TUNING)
+                if scale_tuning is not None and scale_tuning != 100:
+                    parse_log["warnings"].append(
+                        {
+                            "preset": preset.name,
+                            "instrument": instrument.name,
+                            "sample": getattr(sample, "name", None),
+                            "reason": "unsupported_scale_tuning",
+                            "scale_tuning": scale_tuning,
+                        }
+                    )
 
-                delay_mod_tc, delay_mod_present = _sum_short(bags, Sf2Gen.OPER_DELAY_MOD_ENV)
-                attack_mod_tc, attack_mod_present = _sum_short(bags, Sf2Gen.OPER_ATTACK_MOD_ENV)
-                hold_mod_tc, hold_mod_present = _sum_short(bags, Sf2Gen.OPER_HOLD_MOD_ENV)
-                decay_mod_tc, decay_mod_present = _sum_short(bags, Sf2Gen.OPER_DECAY_MOD_ENV)
-                sustain_mod_cb, sustain_mod_present = _sum_word(bags, Sf2Gen.OPER_SUSTAIN_MOD_ENV)
-                release_mod_tc, release_mod_present = _sum_short(bags, Sf2Gen.OPER_RELEASE_MOD_ENV)
+                delay_vol_tc, delay_vol_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_DELAY_VOL_ENV)
+                attack_vol_tc, attack_vol_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_ATTACK_VOL_ENV)
+                hold_vol_tc, hold_vol_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_HOLD_VOL_ENV)
+                decay_vol_tc, decay_vol_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_DECAY_VOL_ENV)
+                sustain_vol_cb, sustain_vol_present = _resolve_word(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_SUSTAIN_VOL_ENV)
+                release_vol_tc, release_vol_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_RELEASE_VOL_ENV)
 
-                chorus_send_raw, chorus_present = _sum_word(bags, Sf2Gen.OPER_CHORUS_EFFECTS_SEND)
-                reverb_send_raw, reverb_present = _sum_word(bags, Sf2Gen.OPER_REVERB_EFFECTS_SEND)
-                exclusive_class = _first_word(bags, Sf2Gen.OPER_EXCLUSIVE_CLASS)
-                initial_atten_cb, initial_atten_present = _sum_short(bags, Sf2Gen.OPER_INITIAL_ATTENUATION)
+                delay_mod_tc, delay_mod_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_DELAY_MOD_ENV)
+                attack_mod_tc, attack_mod_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_ATTACK_MOD_ENV)
+                hold_mod_tc, hold_mod_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_HOLD_MOD_ENV)
+                decay_mod_tc, decay_mod_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_DECAY_MOD_ENV)
+                sustain_mod_cb, sustain_mod_present = _resolve_word(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_SUSTAIN_MOD_ENV)
+                release_mod_tc, release_mod_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_RELEASE_MOD_ENV)
+
+                chorus_send_raw, chorus_present = _resolve_word(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_CHORUS_EFFECTS_SEND)
+                reverb_send_raw, reverb_present = _resolve_word(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_REVERB_EFFECTS_SEND)
+                exclusive_class = _inst_only_word(inst_bag, instrument_global, Sf2Gen.OPER_EXCLUSIVE_CLASS)
+                initial_atten_cb, initial_atten_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_INITIAL_ATTENUATION)
 
                 preset_zones.append(
                     {

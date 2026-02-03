@@ -5,7 +5,7 @@ import os
 from collections import Counter
 from typing import Callable, Dict, List, Tuple
 
-from sf2_to_opxy.audio import resample_linear
+from sf2_to_opxy.audio import resample_sinc
 from sf2_to_opxy.opxy_writer import write_drum_preset, write_multisample_preset
 from sf2_to_opxy.selection import assign_key_ranges, select_zones_for_88_keys
 
@@ -360,9 +360,9 @@ def _resample_pcm(pcm: List[int], channels: int, src_rate: int, dst_rate: int) -
     if src_rate == dst_rate:
         return list(pcm)
     if channels == 1:
-        return resample_linear(pcm, src_rate, dst_rate)
+        return resample_sinc(pcm, src_rate, dst_rate)
     channel_data = [pcm[ch::channels] for ch in range(channels)]
-    resampled = [resample_linear(ch_data, src_rate, dst_rate) for ch_data in channel_data]
+    resampled = [resample_sinc(ch_data, src_rate, dst_rate) for ch_data in channel_data]
     frames = min(len(ch) for ch in resampled)
     out: List[int] = []
     for idx in range(frames):
@@ -530,8 +530,9 @@ def convert_presets(
             if resample:
                 pcm = _resample_pcm(pcm, channels, source_rate, resample_rate)
                 scale = resample_rate / source_rate
+                loop_length = loop_end - loop_start
                 loop_start = int(round(loop_start * scale))
-                loop_end = int(round(loop_end * scale))
+                loop_end = loop_start + int(round(loop_length * scale))
                 output_rate = resample_rate
             else:
                 output_rate = source_rate
