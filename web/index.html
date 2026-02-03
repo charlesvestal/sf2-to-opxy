@@ -107,6 +107,10 @@ h1 {
   padding-top: 1.3rem;
   font-size: 0.85rem;
 }
+.option-group.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
 /* Button */
 .btn {
   display: inline-block;
@@ -210,19 +214,22 @@ footer a { color: var(--accent); text-decoration: none; }
   <div class="card">
     <h2>2. Options</h2>
     <div class="options-grid">
-      <div class="option-group">
+      <div class="option-group checkbox-label" style="padding-top:0">
+        <label><input type="checkbox" id="optResample" checked> Resample audio</label>
+      </div>
+      <div class="option-group" id="groupBitDepth">
+        <label for="optBitDepth">Bit Depth</label>
+        <select id="optBitDepth">
+          <option value="16" selected>16-bit</option>
+          <option value="24">24-bit</option>
+        </select>
+      </div>
+      <div class="option-group" id="groupResampleRate">
         <label for="optResampleRate">Resample Rate</label>
         <select id="optResampleRate">
           <option value="22050" selected>22050 Hz</option>
           <option value="44100">44100 Hz</option>
           <option value="48000">48000 Hz</option>
-        </select>
-      </div>
-      <div class="option-group">
-        <label for="optBitDepth">Bit Depth</label>
-        <select id="optBitDepth">
-          <option value="16" selected>16-bit</option>
-          <option value="24">24-bit</option>
         </select>
       </div>
       <div class="option-group">
@@ -255,9 +262,6 @@ footer a { color: var(--accent); text-decoration: none; }
       </div>
       <div class="option-group checkbox-label">
         <label><input type="checkbox" id="optZeroCrossing"> Zero-crossing snapping</label>
-      </div>
-      <div class="option-group checkbox-label">
-        <label><input type="checkbox" id="optResample" checked> Resample audio</label>
       </div>
     </div>
   </div>
@@ -547,6 +551,18 @@ self.onmessage = async function(e) {
     progressSection.style.display = "block";
     progressText.textContent = "Loading Pyodide...";
   }
+
+  /* Resample toggle: disable rate/bit-depth when unchecked */
+  const optResample = document.getElementById("optResample");
+  const groupResampleRate = document.getElementById("groupResampleRate");
+  const groupBitDepth = document.getElementById("groupBitDepth");
+  function toggleResampleOptions() {
+    const on = optResample.checked;
+    groupResampleRate.classList.toggle("disabled", !on);
+    groupBitDepth.classList.toggle("disabled", !on);
+  }
+  optResample.addEventListener("change", toggleResampleOptions);
+  toggleResampleOptions();
 
   /* File selection */
   dropZone.addEventListener("click", () => fileInput.click());
