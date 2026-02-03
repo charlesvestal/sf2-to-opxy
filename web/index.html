@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SF2 to OP-XY Converter</title>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface2: #0f3460;
+  --accent: #e94560;
+  --accent-hover: #ff6b81;
+  --text: #eee;
+  --text-dim: #999;
+  --success: #2ecc71;
+  --border: #333;
+  --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.container {
+  max-width: 720px;
+  width: 100%;
+  padding: 2rem 1.5rem;
+}
+h1 {
+  font-size: 1.6rem;
+  margin-bottom: 0.3rem;
+}
+.subtitle {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.card h2 {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  color: var(--accent);
+}
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 2.5rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(233, 69, 96, 0.05);
+}
+.drop-zone .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+.drop-zone p { color: var(--text-dim); font-size: 0.9rem; }
+.file-name {
+  margin-top: 0.75rem;
+  font-weight: 600;
+  color: var(--success);
+  display: none;
+}
+/* Options grid */
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.option-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 0.3rem;
+}
+.option-group select,
+.option-group input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+.option-group input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  padding-top: 1.3rem;
+  font-size: 0.85rem;
+}
+/* Button */
+.btn {
+  display: inline-block;
+  padding: 0.65rem 2rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  width: 100%;
+}
+.btn:hover:not(:disabled) { background: var(--accent-hover); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Progress */
+.progress-section { display: none; }
+.progress-bar-track {
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 0.75rem 0;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.3s;
+  border-radius: 3px;
+}
+.progress-text {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+/* Download */
+.download-section { display: none; }
+.download-link {
+  display: inline-block;
+  padding: 0.65rem 2rem;
+  background: var(--success);
+  color: #fff;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: center;
+  width: 100%;
+}
+.download-link:hover { opacity: 0.9; }
+.download-info {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.5rem;
+}
+/* Log */
+.log-section { display: none; }
+.log-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.log-box .error { color: var(--accent); }
+.log-box .success { color: var(--success); }
+/* Footer */
+footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>SF2 &rarr; OP-XY</h1>
+  <p class="subtitle">Convert SoundFont 2 instruments and drum kits to OP-XY presets</p>
+
+  <!-- File picker -->
+  <div class="card">
+    <h2>1. Choose SF2 File</h2>
+    <div class="drop-zone" id="dropZone">
+      <div class="icon">&#x1F4C1;</div>
+      <p>Drop an .sf2 file here or click to browse</p>
+      <div class="file-name" id="fileName"></div>
+    </div>
+    <input type="file" id="fileInput" accept=".sf2" hidden>
+  </div>
+
+  <!-- Options -->
+  <div class="card">
+    <h2>2. Options</h2>
+    <div class="options-grid">
+      <div class="option-group">
+        <label for="optResampleRate">Resample Rate</label>
+        <select id="optResampleRate">
+          <option value="22050" selected>22050 Hz</option>
+          <option value="44100">44100 Hz</option>
+          <option value="48000">48000 Hz</option>
+        </select>
+      </div>
+      <div class="option-group">
+        <label for="optBitDepth">Bit Depth</label>
+        <select id="optBitDepth">
+          <option value="16" selected>16-bit</option>
+          <option value="24">24-bit</option>
+        </select>
+      </div>
+      <div class="option-group">
+        <label for="optVelocity">Velocity</label>
+        <input type="text" id="optVelocity" value="101" placeholder="e.g. 80,101,127">
+      </div>
+      <div class="option-group">
+        <label for="optForceMode">Force Mode</label>
+        <select id="optForceMode">
+          <option value="" selected>Auto-detect</option>
+          <option value="drum">Force Drum</option>
+          <option value="instrument">Force Instrument</option>
+        </select>
+      </div>
+      <div class="option-group">
+        <label for="optPlaymode">Instrument Playmode</label>
+        <select id="optPlaymode">
+          <option value="auto" selected>Auto</option>
+          <option value="poly">Poly</option>
+          <option value="mono">Mono</option>
+          <option value="legato">Legato</option>
+        </select>
+      </div>
+      <div class="option-group">
+        <label for="optLoopEndOffset">Loop End Offset</label>
+        <select id="optLoopEndOffset">
+          <option value="0" selected>0 (default)</option>
+          <option value="-1">-1 (FluidSynth compat)</option>
+        </select>
+      </div>
+      <div class="option-group checkbox-label">
+        <label><input type="checkbox" id="optZeroCrossing"> Zero-crossing snapping</label>
+      </div>
+      <div class="option-group checkbox-label">
+        <label><input type="checkbox" id="optResample" checked> Resample audio</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Convert button -->
+  <div class="card" style="text-align:center;">
+    <button class="btn" id="convertBtn" disabled>Convert</button>
+  </div>
+
+  <!-- Progress -->
+  <div class="card progress-section" id="progressSection">
+    <h2>Progress</h2>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+    <div class="progress-text" id="progressText">Initializing...</div>
+  </div>
+
+  <!-- Download -->
+  <div class="card download-section" id="downloadSection">
+    <h2>Download</h2>
+    <a class="download-link" id="downloadLink" href="#">Download ZIP</a>
+    <div class="download-info" id="downloadInfo"></div>
+  </div>
+
+  <!-- Log -->
+  <div class="card log-section" id="logSection">
+    <h2>Log</h2>
+    <div class="log-box" id="logBox"></div>
+  </div>
+</div>
+
+<footer>
+  <a href="https://github.com/charlesvestal/sf2-to-opxy" target="_blank">sf2-to-opxy</a>
+  &middot; Runs entirely in your browser via
+  <a href="https://pyodide.org" target="_blank">Pyodide</a>
+</footer>
+
+<!-- fflate for ZIP creation -->
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+
+<!-- Worker code embedded as a script block -->
+<script id="worker-script" type="text/js-worker">
+/* Web Worker: loads Pyodide, runs conversion, posts back files */
+
+let pyodide = null;
+
+async function initPyodide(pyBaseUrl) {
+  postProgress("pyodide:load", "Loading Pyodide...");
+  importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js");
+  pyodide = await loadPyodide();
+  postProgress("pyodide:micropip", "Installing sf2utils...");
+  await pyodide.loadPackage("micropip");
+  const micropip = pyodide.pyimport("micropip");
+  await micropip.install("sf2utils");
+
+  postProgress("pyodide:fetch-py", "Fetching Python modules...");
+  /* Fetch our Python source files and write them into Pyodide FS */
+  const pyFiles = [
+    "sf2_to_opxy/__init__.py",
+    "sf2_to_opxy/audio.py",
+    "sf2_to_opxy/converter.py",
+    "sf2_to_opxy/selection.py",
+    "sf2_to_opxy/sf2_reader.py",
+    "sf2_to_opxy/opxy_writer.py",
+    "sf2_to_opxy/loop_variants.py",
+    "sf2_to_opxy/preview.py",
+    "web_entry.py",
+  ];
+
+  pyodide.FS.mkdirTree("/py/sf2_to_opxy");
+
+  for (const relPath of pyFiles) {
+    const url = pyBaseUrl + relPath;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+    const text = await resp.text();
+    pyodide.FS.writeFile("/py/" + relPath, text);
+  }
+
+  postProgress("pyodide:ready", "Pyodide ready.");
+}
+
+function postProgress(stage, message) {
+  self.postMessage({ type: "progress", stage, message });
+}
+
+async function runConversion(fileBuffer, inputName, options) {
+  /* Write the SF2 file into Pyodide FS */
+  const sf2Bytes = new Uint8Array(fileBuffer);
+  const sf2Path = "/tmp/input.sf2";
+  const outDir = "/tmp/output";
+
+  pyodide.FS.mkdirTree("/tmp");
+  pyodide.FS.writeFile(sf2Path, sf2Bytes);
+
+  /* Clean output dir if it exists */
+  try { pyodide.FS.stat(outDir); rmrf(outDir); } catch(e) {}
+  pyodide.FS.mkdirTree(outDir);
+
+  const optionsJson = JSON.stringify(options);
+
+  /* Set up progress callback */
+  const progressCb = pyodide.globals.get("__builtins__").__getattr__
+    ? null /* fallback below */
+    : null;
+
+  /* Run conversion via Python */
+  const code = `
+import sys, json
+sys.path.insert(0, "/py")
+from web_entry import run_conversion
+
+def _progress_cb(current, total, preset_name):
+    from pyodide.ffi import to_js
+    # Store progress for JS to poll is complex; instead we use a simpler approach
+    pass
+
+result = run_conversion(
+    "${sf2Path}",
+    "${outDir}",
+    ${JSON.stringify(optionsJson)},
+    progress_callback=_progress_cb,
+)
+result
+`;
+
+  /* We'll use a more reliable approach: run Python and poll for files */
+  const pyResult = await pyodide.runPythonAsync(`
+import sys, json, os
+sys.path.insert(0, "/py")
+from web_entry import run_conversion
+
+_progress_data = []
+def _progress_cb(current, total, preset_name):
+    _progress_data.append((current, total, preset_name))
+
+result = run_conversion(
+    "${sf2Path}",
+    "${outDir}",
+    ${JSON.stringify(optionsJson)},
+    progress_callback=_progress_cb,
+)
+json.dumps({"files": result["files"], "progress": [(c, t, n) for c, t, n in _progress_data]})
+`);
+
+  const resultObj = JSON.parse(pyResult);
+
+  /* Post progress entries */
+  for (const [current, total, presetName] of resultObj.progress) {
+    self.postMessage({ type: "progress", current, total, preset: presetName,
+      stage: "convert", message: `Converting ${presetName} (${current}/${total})` });
+  }
+
+  /* Read each output file and post it back */
+  for (const relPath of resultObj.files) {
+    const fullPath = outDir + "/" + relPath;
+    try {
+      const data = pyodide.FS.readFile(fullPath);
+      self.postMessage(
+        { type: "file", path: relPath, data: data },
+        [data.buffer]
+      );
+    } catch (e) {
+      self.postMessage({ type: "error", message: `Failed to read ${relPath}: ${e.message}` });
+    }
+  }
+
+  self.postMessage({ type: "complete", count: resultObj.files.length });
+}
+
+/* Recursive remove */
+function rmrf(path) {
+  try {
+    const stat = pyodide.FS.stat(path);
+    if (pyodide.FS.isDir(stat.mode)) {
+      const entries = pyodide.FS.readdir(path).filter(e => e !== "." && e !== "..");
+      for (const e of entries) rmrf(path + "/" + e);
+      pyodide.FS.rmdir(path);
+    } else {
+      pyodide.FS.unlink(path);
+    }
+  } catch(e) {}
+}
+
+/* Message handler */
+self.onmessage = async function(e) {
+  const msg = e.data;
+  try {
+    if (msg.type === "init") {
+      await initPyodide(msg.pyBaseUrl);
+    } else if (msg.type === "convert") {
+      await runConversion(msg.fileBuffer, msg.inputName, msg.options);
+    }
+  } catch (err) {
+    self.postMessage({ type: "error", message: err.message, stack: err.stack });
+  }
+};
+</script>
+
+<!-- Main thread script -->
+<script>
+(function() {
+  "use strict";
+
+  /* DOM refs */
+  const dropZone = document.getElementById("dropZone");
+  const fileInput = document.getElementById("fileInput");
+  const fileNameEl = document.getElementById("fileName");
+  const convertBtn = document.getElementById("convertBtn");
+  const progressSection = document.getElementById("progressSection");
+  const progressBar = document.getElementById("progressBar");
+  const progressText = document.getElementById("progressText");
+  const downloadSection = document.getElementById("downloadSection");
+  const downloadLink = document.getElementById("downloadLink");
+  const downloadInfo = document.getElementById("downloadInfo");
+  const logSection = document.getElementById("logSection");
+  const logBox = document.getElementById("logBox");
+
+  let selectedFile = null;
+  let worker = null;
+  let workerReady = false;
+  const outputFiles = {};  /* path -> Uint8Array */
+
+  /* Logging */
+  function log(msg, cls) {
+    logSection.style.display = "block";
+    const line = document.createElement("div");
+    if (cls) line.className = cls;
+    line.textContent = msg;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  /* Create worker from inline script */
+  function createWorker() {
+    const code = document.getElementById("worker-script").textContent;
+    const blob = new Blob([code], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    worker = new Worker(url);
+
+    worker.onmessage = function(e) {
+      const msg = e.data;
+      if (msg.type === "progress") {
+        progressSection.style.display = "block";
+        progressText.textContent = msg.message || msg.stage;
+        if (msg.current != null && msg.total != null && msg.total > 0) {
+          progressBar.style.width = Math.round((msg.current / msg.total) * 100) + "%";
+        }
+        if (msg.stage === "pyodide:ready") {
+          workerReady = true;
+          updateConvertBtn();
+          log("Pyodide initialized and ready.", "success");
+        }
+        if (msg.stage !== "pyodide:ready") {
+          log(msg.message || msg.stage);
+        }
+      } else if (msg.type === "file") {
+        outputFiles[msg.path] = msg.data;
+        log("  + " + msg.path);
+      } else if (msg.type === "complete") {
+        log(`Conversion complete: ${msg.count} files.`, "success");
+        progressBar.style.width = "100%";
+        progressText.textContent = "Done!";
+        buildZipAndOffer();
+        convertBtn.disabled = false;
+        convertBtn.textContent = "Convert";
+      } else if (msg.type === "error") {
+        log("ERROR: " + msg.message, "error");
+        if (msg.stack) log(msg.stack, "error");
+        convertBtn.disabled = false;
+        convertBtn.textContent = "Convert";
+      }
+    };
+
+    worker.onerror = function(e) {
+      log("Worker error: " + e.message, "error");
+      convertBtn.disabled = false;
+      convertBtn.textContent = "Convert";
+    };
+
+    /* Determine base URL for Python files */
+    const base = new URL(".", window.location.href).href;
+    const pyBaseUrl = base + "py/";
+    worker.postMessage({ type: "init", pyBaseUrl });
+    log("Initializing Pyodide (first load may be slow)...");
+    progressSection.style.display = "block";
+    progressText.textContent = "Loading Pyodide...";
+  }
+
+  /* File selection */
+  dropZone.addEventListener("click", () => fileInput.click());
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files.length > 0) selectFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files.length > 0) selectFile(fileInput.files[0]);
+  });
+
+  function selectFile(file) {
+    if (!file.name.toLowerCase().endsWith(".sf2")) {
+      alert("Please select a .sf2 file.");
+      return;
+    }
+    selectedFile = file;
+    fileNameEl.textContent = file.name + " (" + formatSize(file.size) + ")";
+    fileNameEl.style.display = "block";
+    updateConvertBtn();
+  }
+
+  function updateConvertBtn() {
+    convertBtn.disabled = !(selectedFile && workerReady);
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  /* Convert */
+  convertBtn.addEventListener("click", async () => {
+    if (!selectedFile || !workerReady) return;
+    convertBtn.disabled = true;
+    convertBtn.textContent = "Converting...";
+    downloadSection.style.display = "none";
+    progressBar.style.width = "0%";
+    progressSection.style.display = "block";
+    progressText.textContent = "Reading file...";
+    /* Clear previous output */
+    for (const k of Object.keys(outputFiles)) delete outputFiles[k];
+
+    const buffer = await selectedFile.arrayBuffer();
+    const options = gatherOptions();
+    log("Starting conversion of " + selectedFile.name + "...");
+    worker.postMessage(
+      { type: "convert", fileBuffer: buffer, inputName: selectedFile.name, options },
+      [buffer]
+    );
+  });
+
+  function gatherOptions() {
+    const velocities = document.getElementById("optVelocity").value
+      .split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+    return {
+      velocities: velocities.length > 0 ? velocities : [101],
+      velocity_mode: "keep",
+      resample_rate: parseInt(document.getElementById("optResampleRate").value, 10),
+      bit_depth: parseInt(document.getElementById("optBitDepth").value, 10),
+      resample: document.getElementById("optResample").checked,
+      force_mode: document.getElementById("optForceMode").value || null,
+      instrument_playmode: document.getElementById("optPlaymode").value,
+      drum_velocity_mode: "closest",
+      zero_crossing: document.getElementById("optZeroCrossing").checked,
+      loop_end_offset: parseInt(document.getElementById("optLoopEndOffset").value, 10),
+    };
+  }
+
+  /* Build ZIP using fflate */
+  function buildZipAndOffer() {
+    const fileCount = Object.keys(outputFiles).length;
+    if (fileCount === 0) {
+      log("No output files to download.", "error");
+      return;
+    }
+
+    log("Creating ZIP archive...");
+    const zipData = {};
+    for (const [path, data] of Object.entries(outputFiles)) {
+      /* fflate expects nested object for directories or flat "dir/file" keys */
+      zipData[path] = new Uint8Array(data);
+    }
+
+    const zipped = fflate.zipSync(zipData, { level: 6 });
+    const blob = new Blob([zipped], { type: "application/zip" });
+    const url = URL.createObjectURL(blob);
+
+    const baseName = selectedFile.name.replace(/\.sf2$/i, "");
+    downloadLink.href = url;
+    downloadLink.download = baseName + "_opxy.zip";
+    downloadLink.textContent = "Download " + baseName + "_opxy.zip";
+    downloadInfo.textContent = fileCount + " files, " + formatSize(zipped.byteLength);
+    downloadSection.style.display = "block";
+    log("ZIP ready: " + formatSize(zipped.byteLength), "success");
+  }
+
+  /* Start worker immediately */
+  createWorker();
+})();
+</script>
+
+</body>
+</html>
