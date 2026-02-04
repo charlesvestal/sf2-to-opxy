@@ -19,6 +19,9 @@ RELEASE_MAX_SECONDS = 16.325
 RELEASE_CURVE_P = 0.9572
 ZERO_CROSS_THRESHOLD = 1
 ZERO_CROSS_MAX_DISTANCE = 1000
+# Fake loop detection: loops this short at the end of the sample are treated as one-shots
+FAKE_LOOP_MAX_LENGTH = 3
+FAKE_LOOP_END_TOLERANCE = 4
 
 def apply_loop_end_offset(loop_start: int, loop_end: int, framecount: int, offset: int) -> int:
     adjusted = loop_end + offset
@@ -504,14 +507,22 @@ def convert_presets(
             if loop_enabled:
                 loop_start = max(0, min(loop_start, framecount - 1))
                 loop_end = max(loop_start + 1, min(loop_end, framecount))
-                if loop_end_offset:
+                # Detect fake loops: tiny loops at the end of sample are one-shots
+                loop_length = loop_end - loop_start
+                distance_from_end = framecount - loop_end
+                if loop_length <= FAKE_LOOP_MAX_LENGTH and distance_from_end <= FAKE_LOOP_END_TOLERANCE:
+                    loop_enabled = False
+                    log["warnings"].append(
+                        {"preset": preset_name, "reason": "fake_loop_disabled", "loop_length": loop_length, **_zone_descriptor(zone)}
+                    )
+                if loop_enabled and loop_end_offset:
                     loop_end = apply_loop_end_offset(loop_start, loop_end, framecount, loop_end_offset)
-                if loop_end <= loop_start:
+                if loop_enabled and loop_end <= loop_start:
                     loop_enabled = False
                     log["warnings"].append(
                         {"preset": preset_name, "reason": "invalid_loop", **_zone_descriptor(zone)}
                     )
-                elif zero_crossing:
+                if loop_enabled and zero_crossing:
                     loop_start, loop_end = _adjust_loop_zero_crossing(
                         pcm,
                         channels,

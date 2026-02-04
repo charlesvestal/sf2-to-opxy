@@ -405,7 +405,7 @@ from web_entry import run_conversion
 
 _progress_data = []
 def _progress_cb(current, total, preset_name):
-    _progress_data.append((current, total, preset_name))
+    _progress_data.append(("convert", current, total, preset_name))
 
 result = run_conversion(
     "${sf2Path}",
@@ -413,15 +413,18 @@ result = run_conversion(
     ${JSON.stringify(optionsJson)},
     progress_callback=_progress_cb,
 )
-json.dumps({"files": result["files"], "progress": [(c, t, n) for c, t, n in _progress_data]})
+# Combine parse progress with convert progress
+all_progress = result.get("parse_progress", []) + _progress_data
+json.dumps({"files": result["files"], "progress": list(all_progress)})
 `);
 
   const resultObj = JSON.parse(pyResult);
 
-  /* Post progress entries */
-  for (const [current, total, presetName] of resultObj.progress) {
+  /* Post progress entries (both parse and convert phases) */
+  for (const [stage, current, total, presetName] of resultObj.progress) {
+    const label = stage === "parse" ? "Parsing" : "Converting";
     self.postMessage({ type: "progress", current, total, preset: presetName,
-      stage: "convert", message: `Converting ${presetName} (${current}/${total})` });
+      stage, message: `${label} ${presetName} (${current}/${total})` });
   }
 
   /* Read each output file and post it back */
@@ -594,7 +597,15 @@ self.onmessage = async function(e) {
       return;
     }
     selectedFile = file;
-    fileNameEl.textContent = file.name + " (" + formatSize(file.size) + ")";
+    const sizeStr = formatSize(file.size);
+    let displayText = file.name + " (" + sizeStr + ")";
+    /* Warn about large files */
+    const MAX_RECOMMENDED_SIZE = 200 * 1024 * 1024; /* 200 MB */
+    if (file.size > MAX_RECOMMENDED_SIZE) {
+      displayText += " ⚠️ Large file - may be slow or fail in browser. Consider using the CLI.";
+      log("Warning: Large file (" + sizeStr + "). Browser memory may be insufficient.", "error");
+    }
+    fileNameEl.textContent = displayText;
     fileNameEl.style.display = "block";
     updateConvertBtn();
   }

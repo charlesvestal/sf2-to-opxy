@@ -51,6 +51,7 @@ Standalone scripts for envelope calibration and loop analysis. `generate_calibra
 - **Zone limit:** OP-XY supports max 24 zones per preset. Zones beyond 24 are downsampled by even distribution across A0–C8.
 - **Loop-end offset:** SF2 uses inclusive loop-end; `--loop-end-offset -1` converts to exclusive semantics for FluidSynth compatibility.
 - **Loop on release:** SF2 sample mode bit 0x2 indicates looping continues during note release. Exposed as `--loop-on-release auto|on|off` in CLI and as a dropdown in the web UI.
+- **Fake loop detection:** Many SF2 samples have 1-3 sample loops at the very end of the file as a "one-shot" pattern. The converter detects these (≤3 samples, within 4 frames of end) and disables looping, treating them as true one-shots.
 - **audioop polyfill:** `sf2_reader.py` includes a polyfill for the `audioop` module which may be missing in some Python environments.
 
 ## Output Structure

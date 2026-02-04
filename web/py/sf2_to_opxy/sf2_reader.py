@@ -51,7 +51,10 @@ def read_soundfont(sf2_path: str):
     return sf2
 
 
-def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[str, object]]]]:
+def extract_presets(
+    sf2,
+    parse_progress_callback=None,
+) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[str, object]]]]:
     from sf2utils.generator import Sf2Gen
 
     parse_log: Dict[str, List[Dict[str, object]]] = {
@@ -265,9 +268,15 @@ def extract_presets(sf2) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[s
 
     presets: List[Dict[str, object]] = []
 
+    total_presets = len([p for p in sf2.presets if getattr(p, "name", None) != "EOP"])
+    current_preset = 0
+
     for preset in sf2.presets:
         if getattr(preset, "name", None) == "EOP":
             continue
+        current_preset += 1
+        if parse_progress_callback:
+            parse_progress_callback(current_preset, total_presets, preset.name)
 
         preset_global = None
         preset_zones = []

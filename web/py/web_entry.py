@@ -1,5 +1,6 @@
 """Pyodide entry point for SF2 to OP-XY web converter."""
 
+import gc
 import json
 import os
 import sys
@@ -39,8 +40,17 @@ def run_conversion(sf2_path, out_dir, options_json, progress_callback=None):
 
     os.makedirs(out_dir, exist_ok=True)
 
+    # Create parse progress callback that prefixes with "parse:" stage
+    parse_progress_data = []
+    def parse_progress_cb(current, total, name):
+        parse_progress_data.append(("parse", current, total, name))
+
     sf2 = read_soundfont(sf2_path)
-    presets, parse_log = extract_presets(sf2)
+    presets, parse_log = extract_presets(sf2, parse_progress_callback=parse_progress_cb)
+
+    # Release SF2 object memory before conversion
+    del sf2
+    gc.collect()
 
     log = convert_presets(
         presets,
@@ -75,4 +85,7 @@ def run_conversion(sf2_path, out_dir, options_json, progress_callback=None):
     if "conversion-log.json" not in output_files:
         output_files.append("conversion-log.json")
 
-    return {"files": sorted(output_files), "log": log}
+    # Clean up to free memory
+    gc.collect()
+
+    return {"files": sorted(output_files), "log": log, "parse_progress": parse_progress_data}
