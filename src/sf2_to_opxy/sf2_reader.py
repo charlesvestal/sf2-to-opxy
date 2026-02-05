@@ -86,11 +86,11 @@ def extract_presets(
     def _get_sample_pair(sample):
         if getattr(sample, "name", None) == "EOS":
             return None
-        left_idx = sample_index.get(id(sample))
-        if left_idx is None:
+        sample_idx = sample_index.get(id(sample))
+        if sample_idx is None:
             return None
         if sample.is_mono:
-            cache_key = (left_idx, None)
+            cache_key = (sample_idx, None)
             if cache_key not in sample_cache:
                 pcm = _decode_pcm(sample)
                 sample_cache[cache_key] = {
@@ -100,26 +100,62 @@ def extract_presets(
                     "loop_start": sample.start_loop,
                     "loop_end": sample.end_loop,
                     "pitch_correction": sample.pitch_correction,
+                    "name": getattr(sample, "name", None),
                 }
             return sample_cache[cache_key]
-        right_idx = sample.sample_link
+        # Stereo sample: normalize to always process from left channel
+        # SF2 sample_type: 2 = rightSample, 4 = leftSample
+        sample_type = getattr(sample, "sample_type", None)
+        if sample_type == 2:
+            # This is a right sample - look up linked left sample instead
+            # This prevents duplicate stereo files with swapped channels
+            try:
+                left_sample = sf2.samples[sample.sample_link]
+                left_idx = sample.sample_link
+                right_idx = sample_idx
+                right_sample = sample
+            except Exception:
+                # Fallback: treat as mono if link is invalid
+                cache_key = (sample_idx, None)
+                if cache_key not in sample_cache:
+                    pcm = _decode_pcm(sample)
+                    sample_cache[cache_key] = {
+                        "pcm": pcm,
+                        "rate": sample.sample_rate,
+                        "channels": 1,
+                        "loop_start": sample.start_loop,
+                        "loop_end": sample.end_loop,
+                        "pitch_correction": sample.pitch_correction,
+                        "name": getattr(sample, "name", None),
+                    }
+                return sample_cache[cache_key]
+        else:
+            # This is a left sample (type=4) or unknown stereo type
+            left_sample = sample
+            left_idx = sample_idx
+            right_idx = sample.sample_link
+            try:
+                right_sample = sf2.samples[right_idx]
+            except Exception:
+                # Fallback: treat as mono if link is invalid
+                cache_key = (sample_idx, None)
+                if cache_key not in sample_cache:
+                    pcm = _decode_pcm(sample)
+                    sample_cache[cache_key] = {
+                        "pcm": pcm,
+                        "rate": sample.sample_rate,
+                        "channels": 1,
+                        "loop_start": sample.start_loop,
+                        "loop_end": sample.end_loop,
+                        "pitch_correction": sample.pitch_correction,
+                        "name": getattr(sample, "name", None),
+                    }
+                return sample_cache[cache_key]
+        # Use normalized cache key (always left_idx, right_idx order)
         cache_key = (left_idx, right_idx)
         if cache_key in sample_cache:
             return sample_cache[cache_key]
-        try:
-            right_sample = sf2.samples[right_idx]
-        except Exception:
-            pcm = _decode_pcm(sample)
-            sample_cache[cache_key] = {
-                "pcm": pcm,
-                "rate": sample.sample_rate,
-                "channels": 1,
-                "loop_start": sample.start_loop,
-                "loop_end": sample.end_loop,
-                "pitch_correction": sample.pitch_correction,
-            }
-            return sample_cache[cache_key]
-        left_pcm = _decode_pcm(sample)
+        left_pcm = _decode_pcm(left_sample)
         right_pcm = _decode_pcm(right_sample)
         frames = min(len(left_pcm), len(right_pcm))
         # Interleave left and right channels into a single array
@@ -127,13 +163,15 @@ def extract_presets(
         for i in range(frames):
             interleaved[i * 2] = left_pcm[i]
             interleaved[i * 2 + 1] = right_pcm[i]
+        # Use left sample's name for consistent naming (avoids L/R duplicates)
         sample_cache[cache_key] = {
             "pcm": interleaved,
-            "rate": sample.sample_rate,
+            "rate": left_sample.sample_rate,
             "channels": 2,
-            "loop_start": sample.start_loop,
-            "loop_end": sample.end_loop,
-            "pitch_correction": sample.pitch_correction,
+            "loop_start": left_sample.start_loop,
+            "loop_end": left_sample.end_loop,
+            "pitch_correction": left_sample.pitch_correction,
+            "name": getattr(left_sample, "name", None),
         }
         return sample_cache[cache_key]
 
@@ -312,6 +350,20 @@ def extract_presets(
                     )
                     continue
 
+                # Skip zones referencing stereo-right samples - the corresponding
+                # stereo-left zone will produce the same interleaved stereo output
+                sample_type = getattr(sample, "sample_type", None)
+                if sample_type == 2:  # rightSample
+                    parse_log["skipped_zones"].append(
+                        {
+                            "preset": preset.name,
+                            "instrument": instrument.name,
+                            "sample": getattr(sample, "name", None),
+                            "reason": "stereo_right_duplicate",
+                        }
+                    )
+                    continue
+
                 preset_key = _get_range(bag, Sf2Gen.OPER_KEY_RANGE) or _get_range(
                     preset_global, Sf2Gen.OPER_KEY_RANGE
                 )
@@ -452,6 +504,9 @@ def extract_presets(
                 exclusive_class = _inst_only_word(inst_bag, instrument_global, Sf2Gen.OPER_EXCLUSIVE_CLASS)
                 initial_atten_cb, initial_atten_present = _resolve_short(inst_bag, instrument_global, bag, preset_global, Sf2Gen.OPER_INITIAL_ATTENUATION)
 
+                # Use normalized sample name from sample_pair (always uses left channel name for stereo)
+                # This ensures L/R zones that share the same stereo data get the same filename
+                sample_name = sample_pair.get("name") or getattr(sample, "name", None) or f"sample_{sample_gen.word}"
                 preset_zones.append(
                     {
                         "preset": preset.name,
@@ -460,7 +515,7 @@ def extract_presets(
                         "key_range": key_range,
                         "vel_range": vel_range,
                         "sample": {
-                            "name": getattr(sample, "name", None) or f"sample_{sample_gen.word}",
+                            "name": sample_name,
                             "data": pcm,
                             "rate": int(sample_pair["rate"]),
                             "channels": channels,
