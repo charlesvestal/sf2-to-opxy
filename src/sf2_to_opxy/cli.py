@@ -92,6 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="Loop on release behaviour: auto (use SF2 value), on (force enable), off (force disable)",
     )
+    parser.add_argument(
+        "--default-crossfade",
+        type=int,
+        default=0,
+        help="Default loop crossfade value (0=off, higher values add crossfade)",
+    )
     return parser
 
 
@@ -139,6 +145,7 @@ def run(args: argparse.Namespace) -> int:
                 zero_crossing=args.zero_crossing,
                 loop_end_offset=args.loop_end_offset,
                 loop_on_release=args.loop_on_release,
+                default_crossfade=args.default_crossfade,
             )
             log["parse_warnings"] = parse_log
             log["source"] = sf2_path

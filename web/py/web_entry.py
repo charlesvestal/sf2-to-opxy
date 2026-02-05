@@ -37,6 +37,7 @@ def run_conversion(sf2_path, out_dir, options_json, progress_callback=None):
     zero_crossing = options.get("zero_crossing", False)
     loop_end_offset = options.get("loop_end_offset", 0)
     loop_on_release = options.get("loop_on_release", "auto")
+    default_crossfade = options.get("default_crossfade", 0)
 
     os.makedirs(out_dir, exist_ok=True)
 
@@ -66,6 +67,7 @@ def run_conversion(sf2_path, out_dir, options_json, progress_callback=None):
         zero_crossing=zero_crossing,
         loop_end_offset=loop_end_offset,
         loop_on_release=loop_on_release,
+        default_crossfade=default_crossfade,
         progress_callback=progress_callback,
     )
     log["parse_warnings"] = parse_log

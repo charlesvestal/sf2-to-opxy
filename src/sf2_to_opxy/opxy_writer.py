@@ -129,7 +129,7 @@ def write_multisample_preset(preset: Dict[str, object], out_dir: str) -> None:
                 "gain": int(region.get("gain", 0)),
                 "hikey": region["hikey"],
                 "lokey": region["lokey"],
-                "loop.crossfade": 50 if region["loop_enabled"] else 0,
+                "loop.crossfade": int(region.get("loop_crossfade", 0)),
                 "loop.end": region["loop_end"],
                 "loop.onrelease": region.get("loop_on_release", False),
                 "loop.enabled": region["loop_enabled"],

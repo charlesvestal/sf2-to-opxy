@@ -426,6 +426,7 @@ def convert_presets(
     zero_crossing_threshold: int = ZERO_CROSS_THRESHOLD,
     loop_end_offset: int = 0,
     loop_on_release: str = "auto",
+    default_crossfade: int = 0,
     progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> Dict[str, object]:
     log: Dict[str, object] = {"discarded": [], "presets": [], "warnings": []}
@@ -560,6 +561,7 @@ def convert_presets(
                     "loop_end": loop_end,
                     "loop_enabled": loop_enabled,
                     "loop_on_release": zone_loop_on_release,
+                    "loop_crossfade": default_crossfade,
                     "framecount": framecount,
                     "lokey": zone["lokey"],
                     "hikey": zone["hikey"],
