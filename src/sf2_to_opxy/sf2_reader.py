@@ -65,19 +65,21 @@ def extract_presets(
     sample_index = {id(sample): idx for idx, sample in enumerate(sf2.samples)}
     sample_cache: Dict[Tuple[int, Optional[int]], Dict[str, object]] = {}
 
-    def _decode_pcm(sample) -> List[int]:
+    def _decode_pcm(sample) -> array:
+        """Decode raw sample data to a compact array of 16-bit signed integers."""
         raw = sample.raw_sample_data
         width = sample.sample_width
         if width == 2:
             pcm = array("h")
             pcm.frombytes(raw)
-            return list(pcm)
+            return pcm
         if width == 3:
-            pcm: List[int] = []
+            # Convert 24-bit samples to 16-bit by dropping lowest 8 bits
+            pcm = array("h")
             for i in range(0, len(raw), 3):
                 chunk = raw[i:i + 3]
                 value = int.from_bytes(chunk, byteorder="little", signed=True)
-                pcm.append(int(value >> 8))
+                pcm.append(value >> 8)
             return pcm
         raise ValueError(f"Unsupported sample width: {width}")
 
@@ -120,10 +122,11 @@ def extract_presets(
         left_pcm = _decode_pcm(sample)
         right_pcm = _decode_pcm(right_sample)
         frames = min(len(left_pcm), len(right_pcm))
-        interleaved: List[int] = []
+        # Interleave left and right channels into a single array
+        interleaved = array("h", [0]) * (frames * 2)
         for i in range(frames):
-            interleaved.append(left_pcm[i])
-            interleaved.append(right_pcm[i])
+            interleaved[i * 2] = left_pcm[i]
+            interleaved[i * 2 + 1] = right_pcm[i]
         sample_cache[cache_key] = {
             "pcm": interleaved,
             "rate": sample.sample_rate,

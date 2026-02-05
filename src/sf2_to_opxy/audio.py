@@ -200,22 +200,23 @@ def _resample_sinc_pure(
     return out
 
 
-def resample_sinc(
-    samples: List[int], src_rate: int, dst_rate: int, num_taps: int = 16
-) -> List[int]:
+def resample_sinc(samples, src_rate: int, dst_rate: int, num_taps: int = 16):
     """Resample using a windowed-sinc interpolation filter.
 
     Uses numpy when available for speed, otherwise falls back to pure Python.
     Applies proper anti-aliasing when downsampling.
+    Accepts list or array input; returns list output (or input unchanged if no resampling).
     """
     if src_rate == dst_rate:
-        return list(samples)
+        return samples  # No copy needed - return as-is
     if _HAS_NUMPY:
         return _resample_sinc_numpy(samples, src_rate, dst_rate, num_taps)
     return _resample_sinc_pure(samples, src_rate, dst_rate, num_taps)
 
 
-def write_wav(samples: List[int], sample_rate: int, channels: int, bit_depth: int) -> bytes:
+def write_wav(samples, sample_rate: int, channels: int, bit_depth: int) -> bytes:
+    """Write samples to WAV format. Accepts list or array of 16-bit signed ints."""
+    from array import array
     if bit_depth != 16:
         raise ValueError("Only 16-bit output supported")
     buf = io.BytesIO()
@@ -223,12 +224,17 @@ def write_wav(samples: List[int], sample_rate: int, channels: int, bit_depth: in
         wf.setnchannels(channels)
         wf.setsampwidth(2)
         wf.setframerate(sample_rate)
-        frames = bytearray()
-        for sample in samples:
-            if sample > 32767:
-                sample = 32767
-            elif sample < -32768:
-                sample = -32768
-            frames += int(sample).to_bytes(2, byteorder="little", signed=True)
-        wf.writeframes(frames)
+        # Fast path: if already an array of signed shorts, use tobytes directly
+        if isinstance(samples, array) and samples.typecode == "h":
+            wf.writeframes(samples.tobytes())
+        else:
+            # Convert to array for efficient serialization
+            out = array("h")
+            for sample in samples:
+                if sample > 32767:
+                    sample = 32767
+                elif sample < -32768:
+                    sample = -32768
+                out.append(int(sample))
+            wf.writeframes(out.tobytes())
     return buf.getvalue()

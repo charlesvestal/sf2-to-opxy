@@ -357,18 +357,21 @@ def _select_drum_zones_by_velocity(
             )
     return selected
 
-def _resample_pcm(pcm: List[int], channels: int, src_rate: int, dst_rate: int) -> List[int]:
+def _resample_pcm(pcm, channels: int, src_rate: int, dst_rate: int):
+    """Resample PCM data. Accepts list or array, returns same type when no resampling."""
+    from array import array
     if src_rate == dst_rate:
-        return list(pcm)
+        return pcm  # No copy needed - return as-is
     if channels == 1:
         return resample_sinc(pcm, src_rate, dst_rate)
     channel_data = [pcm[ch::channels] for ch in range(channels)]
     resampled = [resample_sinc(ch_data, src_rate, dst_rate) for ch_data in channel_data]
     frames = min(len(ch) for ch in resampled)
-    out: List[int] = []
+    # Use array for efficient memory usage
+    out = array("h", [0]) * (frames * channels)
     for idx in range(frames):
         for ch in range(channels):
-            out.append(resampled[ch][idx])
+            out[idx * channels + ch] = resampled[ch][idx]
     return out
 
 
