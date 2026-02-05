@@ -23,9 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync Python sources to web/py/
-        run: bash tools/sync_web_py.sh
-
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
